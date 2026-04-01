@@ -1,6 +1,6 @@
 import {
   ROWS, COLS, PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_COL, CENTER_ROW,
-  createInitialGrid, createInitialPending, createInitialTopPending,
+  createInitialGrid, createInitialPending,
   pushFromLeft, pushFromRight, pushFromTop, pushFromBottom,
   collapseGrid, annihilateAdjacent, sideCanLand, checkGameOver,
 } from './gameLogic.js';
@@ -57,21 +57,18 @@ describe('Grid Initialization', () => {
     expect(grid[8].every(v => v === 0)).toBe(true);
   });
 
-  test('createInitialPending returns array of 5 tiles', () => {
+  test('createInitialPending returns array of 5 non-repeating tiles for any side', () => {
     const pending = createInitialPending();
     expect(pending.length).toBe(5);
     expect(pending.every(t => t >= 1 && t <= 7)).toBe(true);
-  });
-
-  test('createInitialTopPending returns array of 5 tiles', () => {
-    const pending = createInitialTopPending();
-    expect(pending.length).toBe(5);
-    expect(pending.every(t => t >= 1 && t <= 7)).toBe(true);
+    // No two adjacent tiles should be equal (randTileSideExcluding)
+    for (let i = 1; i < pending.length; i++)
+      expect(pending[i]).not.toBe(pending[i - 1]);
   });
 });
 
-describe('Collision Logic', () => {
-  test('equal tiles placed adjacent (no collision annihilation)', () => {
+describe('Push Adjacent Placement', () => {
+  test('equal-value tiles: incoming placed adjacent, no annihilation at push time', () => {
     const grid = [
       ...Array(ROWS - 1).fill(null).map(() => Array(COLS).fill(0)),
       [0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -85,7 +82,7 @@ describe('Collision Logic', () => {
     expect(result.score).toBe(0);
   });
 
-  test('unequal tiles do not merge: incoming placed adjacent', () => {
+  test('different-value tiles: incoming placed adjacent', () => {
     const grid = [
       ...Array(ROWS - 1).fill(null).map(() => Array(COLS).fill(0)),
       [0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -99,7 +96,7 @@ describe('Collision Logic', () => {
     expect(result.score).toBe(0);
   });
 
-  test('no collision: larger tile does not collide with smaller', () => {
+  test('different-value tiles: larger incoming placed adjacent to smaller', () => {
     const grid = [
       ...Array(ROWS - 1).fill(null).map(() => Array(COLS).fill(0)),
       [0, 0, 0, 0, 0, 0, 0, 0, 0],

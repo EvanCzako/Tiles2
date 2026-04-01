@@ -61,17 +61,6 @@ export function createInitialPending(cfg = DEFAULT_CFG) {
   return arr;
 }
 
-export function createInitialTopPending(cfg = DEFAULT_CFG) {
-  const arr = [];
-  for (let i = 0; i < cfg.PENDING_SIZE; i++)
-    arr.push(randTileSideExcluding(arr[i - 1] ?? -1));
-  return arr;
-}
-
-function collide(moving, stationary) {
-  return null;
-}
-
 export function pushFromLeft(grid, leftPending, cfg = DEFAULT_CFG) {
   const { COLS, PENDING_SIZE, PENDING_ROW_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map(row => [...row]);
@@ -105,20 +94,12 @@ export function pushFromLeft(grid, leftPending, cfg = DEFAULT_CFG) {
       } else {
         landings.push({ pendingIdx: i, flyThrough: true });
       }
+    } else if (leftmost > 0) {
+      newGrid[row][leftmost - 1] = tileVal;
+      landings.push({ pendingIdx: i, row, col: leftmost - 1, merged: false });
     } else {
-      const result = collide(tileVal, newGrid[row][leftmost]);
-      if (result !== null) {
-        score += result === 0 ? tileVal + newGrid[row][leftmost] : tileVal;
-        newGrid[row][leftmost] = result;
-        mergedCells.push([row, leftmost]);
-        landings.push({ pendingIdx: i, row, col: leftmost, merged: true });
-      } else if (leftmost > 0) {
-        newGrid[row][leftmost - 1] = tileVal;
-        landings.push({ pendingIdx: i, row, col: leftmost - 1, merged: false });
-      } else {
-        blockedIndices.push(i);
-        continue;
-      }
+      blockedIndices.push(i);
+      continue;
     }
 
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
@@ -160,20 +141,12 @@ export function pushFromRight(grid, rightPending, cfg = DEFAULT_CFG) {
       } else {
         landings.push({ pendingIdx: i, flyThrough: true });
       }
+    } else if (rightmost < COLS - 1) {
+      newGrid[row][rightmost + 1] = tileVal;
+      landings.push({ pendingIdx: i, row, col: rightmost + 1, merged: false });
     } else {
-      const result = collide(tileVal, newGrid[row][rightmost]);
-      if (result !== null) {
-        score += result === 0 ? tileVal + newGrid[row][rightmost] : tileVal;
-        newGrid[row][rightmost] = result;
-        mergedCells.push([row, rightmost]);
-        landings.push({ pendingIdx: i, row, col: rightmost, merged: true });
-      } else if (rightmost < COLS - 1) {
-        newGrid[row][rightmost + 1] = tileVal;
-        landings.push({ pendingIdx: i, row, col: rightmost + 1, merged: false });
-      } else {
-        blockedIndices.push(i);
-        continue;
-      }
+      blockedIndices.push(i);
+      continue;
     }
 
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
@@ -208,20 +181,12 @@ export function pushFromTop(grid, topPending, cfg = DEFAULT_CFG) {
       } else {
         landings.push({ pendingIdx: i, flyThrough: true });
       }
+    } else if (topmost > 0) {
+      newGrid[topmost - 1][col] = tileVal;
+      landings.push({ pendingIdx: i, row: topmost - 1, col, merged: false });
     } else {
-      const result = collide(tileVal, newGrid[topmost][col]);
-      if (result !== null) {
-        score += result === 0 ? tileVal + newGrid[topmost][col] : tileVal;
-        newGrid[topmost][col] = result;
-        mergedCells.push([topmost, col]);
-        landings.push({ pendingIdx: i, row: topmost, col, merged: true });
-      } else if (topmost > 0) {
-        newGrid[topmost - 1][col] = tileVal;
-        landings.push({ pendingIdx: i, row: topmost - 1, col, merged: false });
-      } else {
-        blockedIndices.push(i);
-        continue;
-      }
+      blockedIndices.push(i);
+      continue;
     }
 
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
@@ -256,20 +221,12 @@ export function pushFromBottom(grid, bottomPending, cfg = DEFAULT_CFG) {
       } else {
         landings.push({ pendingIdx: i, flyThrough: true });
       }
+    } else if (bottommost < ROWS - 1) {
+      newGrid[bottommost + 1][col] = tileVal;
+      landings.push({ pendingIdx: i, row: bottommost + 1, col, merged: false });
     } else {
-      const result = collide(tileVal, newGrid[bottommost][col]);
-      if (result !== null) {
-        score += result === 0 ? tileVal + newGrid[bottommost][col] : tileVal;
-        newGrid[bottommost][col] = result;
-        mergedCells.push([bottommost, col]);
-        landings.push({ pendingIdx: i, row: bottommost, col, merged: true });
-      } else if (bottommost < ROWS - 1) {
-        newGrid[bottommost + 1][col] = tileVal;
-        landings.push({ pendingIdx: i, row: bottommost + 1, col, merged: false });
-      } else {
-        blockedIndices.push(i);
-        continue;
-      }
+      blockedIndices.push(i);
+      continue;
     }
 
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
@@ -671,10 +628,6 @@ export function annihilateAdjacent(grid, cfg = DEFAULT_CFG) {
   const newGrid = grid.map(row => [...row]);
   for (const [r, c] of toAnnihilate) newGrid[r][c] = 0;
   return { grid: newGrid, annihilatedCells: toAnnihilate, score };
-}
-
-export function isDeadCell(r, c) {
-  return false;
 }
 
 // Returns true if a given side can land at least one tile on the board.

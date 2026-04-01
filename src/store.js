@@ -1,15 +1,12 @@
 import { create } from 'zustand';
 import {
   GRID_CONFIGS,
-  createInitialGrid, createInitialPending, createInitialTopPending,
+  createInitialGrid, createInitialPending,
   pushFromLeft, pushFromRight, pushFromTop, pushFromBottom, collapseGrid, annihilateAdjacent,
   sideCanLand, checkGameOver,
 } from './gameLogic';
 import { CELL, GAP, ANIM_MS, FLASH_MS, AUTO_MOVE_MS } from './constants';
 import { getLayout, cellPos, leftPendingPos, rightPendingPos, topPendingPos, bottomPendingPos } from './layout';
-
-// Re-export for backward compatibility
-export { CELL, GAP, ANIM_MS };
 
 function getAvailableDirections(s) {
   const { grid, disabledLeft, disabledRight, disabledTop, disabledBottom, cfg } = s;
@@ -43,8 +40,8 @@ function initState(mode = '9x9') {
     grid:           createInitialGrid(cfg),
     leftPending:    createInitialPending(cfg),
     rightPending:   createInitialPending(cfg),
-    topPending:     createInitialTopPending(cfg),
-    bottomPending:  createInitialTopPending(cfg),
+    topPending:     createInitialPending(cfg),
+    bottomPending:  createInitialPending(cfg),
     score:          0,
     highScore:      loadHighScore(),
     gameOver:       false,
@@ -65,6 +62,21 @@ function initState(mode = '9x9') {
   };
 }
 
+function buildFrozenSnapshot(grid, cfg) {
+  const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
+  const gridEmpty = grid.every(row => row.every(v => v === 0));
+  const centerRowIdx = CENTER_ROW - PENDING_ROW_START;
+  const centerColIdx = CENTER_COL - PENDING_COL_START;
+  const rowActive = i => grid[PENDING_ROW_START + i].some(v => v !== 0) || (gridEmpty && i === centerRowIdx);
+  const colActive = i => grid.some(row => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
+  return {
+    left:   Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
+    right:  Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
+    top:    Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
+    bottom: Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
+  };
+}
+
 // ── Collapse + annihilate loop ─────────────────────────────────────────────
 function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide = 'left') {
   const { cfg } = get();
@@ -75,23 +87,9 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
     const { annihilatedCells, grid: annGrid, score: annScore } = annihilateAdjacent(settled, curCfg);
 
     if (annihilatedCells.length === 0) {
-      // Compute a fresh frozen snapshot from the settled grid so the transition
-      // from "animation frozen" to "post-cascade" is atomic — no null frame that
-      // causes Arena to re-derive visibility from a mismatched grid mid-render.
-      const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = curCfg;
-      const gridEmpty = settled.every(row => row.every(v => v === 0));
-      const centerRowIdx = CENTER_ROW - PENDING_ROW_START;
-      const centerColIdx = CENTER_COL - PENDING_COL_START;
-      const rowActive = i => settled[PENDING_ROW_START + i].some(v => v !== 0) || (gridEmpty && i === centerRowIdx);
-      const colActive = i => settled.some(row => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
-      const freshFrozen = {
-        left:   Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
-        right:  Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
-        top:    Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
-        bottom: Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
-      };
-      // Cascade fully settled — now reveal the refreshed pending tiles
-      set({ animating: false, frozenPendingRows: freshFrozen, ...pendingPayload });
+      // Cascade fully settled — transition is atomic (never passes through null)
+      // to avoid Arena re-deriving visibility from a mismatched grid mid-render.
+      set({ animating: false, frozenPendingRows: buildFrozenSnapshot(settled, curCfg), ...pendingPayload });
       if (checkGameOver(settled, newDL, newDR, newDT, newDB, curCfg)) {
         const currentScore = get().score;
         const currentHighScore = get().highScore;
@@ -220,18 +218,7 @@ const useGameStore = create((set, get) => ({
 
     // Snapshot row activity BEFORE the push so pending columns stay frozen at
     // pre-swipe height for the entire cascade.
-    const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
-    const gridEmpty = s.grid.every(row => row.every(v => v === 0));
-    const centerRowIdx = CENTER_ROW - PENDING_ROW_START;
-    const centerColIdx = CENTER_COL - PENDING_COL_START;
-    const rowActive = i => s.grid[PENDING_ROW_START + i].some(v => v !== 0) || (gridEmpty && i === centerRowIdx);
-    const colActive = i => s.grid.some(row => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
-    const frozenPendingRows = {
-      left:   Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
-      right:  Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
-      top:    Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
-      bottom: Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
-    };
+    const frozenPendingRows = buildFrozenSnapshot(s.grid, cfg);
     // Fully refreshed values (result.pending) are applied only when cascade settles.
     const intermediatePending = pendingArg.map((v, i) => blockedIndices.includes(i) ? v : 0);
 
@@ -307,7 +294,6 @@ const useGameStore = create((set, get) => ({
       flyingSource:   pendingKey.replace('Pending', ''),
       animating:      true,
       frozenPendingRows,
-      missCount:      blockedIndices.length > 0 ? s.missCount + blockedIndices.length : s.missCount,
       redFlashSet:    blockedIndices.length > 0 ? new Set(blockedIndices) : new Set(),
       redFlashSource: blockedIndices.length > 0 ? pendingKey : null,
     });

@@ -1,6 +1,5 @@
 import useGameStore from '../store';
 import { CELL, GAP } from '../constants';
-import { isDeadCell } from '../gameLogic';
 import Tile from './Tile';
 import FlyingTile from './FlyingTile';
 import GameOverOverlay from './GameOverOverlay';
@@ -66,15 +65,12 @@ export default function Arena() {
               className={`grid-cell${c === CENTER_COL || r === CENTER_ROW ? ' grid-cell--center' : ''}`}
               style={{ width: CELL, height: CELL }}
             >
-              {isDeadCell(r, c)
-                ? <div className="tile tile--dead" style={{ width: CELL, height: CELL }} />
-                : <Tile
+              <Tile
                     value={collapsingCells.has(`${r},${c}`) ? 0 : val}
                     flashing={flashSet.has(`${r},${c}`)}
                     flashAnnihilate={annihilateSet.has(`${r},${c}`)}
                     centerColumn={c === CENTER_COL || r === CENTER_ROW}
                   />
-              }
             </div>
           ))
         )}
