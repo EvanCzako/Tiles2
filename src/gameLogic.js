@@ -656,6 +656,9 @@ export function checkGameOver(grid, dl, dr, dt, db, cfg) {
   );
 }
 
+export const MAX_COMBO = 5;
+export function nextCombo(combo) { return Math.min(combo + 1, MAX_COMBO); }
+
 export function getTileColor(value) {
   const colors = {
     0:  { bg: '#1e1e38', text: 'transparent' },

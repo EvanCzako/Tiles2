@@ -1,14 +1,17 @@
 const isTouch = typeof window !== 'undefined' &&
   ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
-export default function GameHeader({ score, highScore, onResetHighScore }) {
+const COMBO_COLORS = ['#8888aa', '#ffcc00', '#ff8822', '#ff4422', '#dd1144'];
+
+export default function GameHeader({ score, highScore, combo }) {
+  const comboColor = COMBO_COLORS[Math.min(combo - 1, 4)];
   return (
     <div className="game-header">
       <h1 className="title">TILES</h1>
       <div className="score-row">
         <p className="score">Score: {score}</p>
+        <p className="combo" style={{ opacity: combo > 1 ? 1 : 0.3, color: comboColor }}>{combo}x</p>
         <p className="high-score">High Score: {highScore}</p>
-        <button className="reset-hs-btn" onClick={onResetHighScore} title="Reset high score">↻</button>
       </div>
       <p className="hint">
         {isTouch

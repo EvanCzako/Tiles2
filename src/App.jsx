@@ -6,7 +6,7 @@ import Arena from './components/Arena';
 import './App.css';
 
 export default function App() {
-  const { score, highScore, triggerPush, layout, resetHighScore } = useGameStore();
+  const { score, highScore, combo, triggerPush, layout } = useGameStore();
   const { CONTAINER_W, CONTAINER_H } = layout;
 
   const scale = useScale(CONTAINER_W, CONTAINER_H);
@@ -14,7 +14,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <GameHeader score={score} highScore={highScore} onResetHighScore={resetHighScore} />
+      <GameHeader score={score} highScore={highScore} combo={combo} />
       <div className="arena-container">
         <div style={{ width: CONTAINER_W * scale, height: CONTAINER_H * scale, overflow: 'visible', flexShrink: 0 }}>
           <div className="arena" style={{ width: CONTAINER_W, height: CONTAINER_H, transform: `scale(${scale})`, transformOrigin: '0 0' }}>

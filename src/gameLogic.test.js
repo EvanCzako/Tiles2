@@ -3,6 +3,7 @@ import {
   createInitialGrid, createInitialPending,
   pushFromLeft, pushFromRight, pushFromTop, pushFromBottom,
   collapseGrid, annihilateAdjacent, sideCanLand, checkGameOver,
+  nextCombo, MAX_COMBO,
 } from './gameLogic.js';
 
 // Helper: build a sparse 9×9 grid from a list of [row, col, value] triples.
@@ -897,5 +898,48 @@ describe('checkGameOver', () => {
     for (let c = 1; c < COLS - 1; c++) entries.push([0, c, 1], [ROWS - 1, c, 1]);
     const grid = makeGrid(entries);
     expect(checkGameOver(grid, NONE, NONE, NONE, NONE, CFG)).toBe(false);
+  });
+});
+
+// ── Combo multiplier ─────────────────────────────────────────────────────────
+describe('nextCombo', () => {
+  test('starts at 1, first call returns 2', () => {
+    expect(nextCombo(1)).toBe(2);
+  });
+
+  test('increments correctly: 2 → 3 → 4 → 5', () => {
+    expect(nextCombo(2)).toBe(3);
+    expect(nextCombo(3)).toBe(4);
+    expect(nextCombo(4)).toBe(5);
+  });
+
+  test('caps at MAX_COMBO (5)', () => {
+    expect(nextCombo(5)).toBe(5);
+    expect(nextCombo(10)).toBe(5); // defensive
+  });
+
+  test('MAX_COMBO is 5', () => {
+    expect(MAX_COMBO).toBe(5);
+  });
+
+  test('cascading three waves: 1x → 2x → 3x', () => {
+    let combo = 1;
+    combo = nextCombo(combo); expect(combo).toBe(2);
+    combo = nextCombo(combo); expect(combo).toBe(3);
+  });
+
+  test('score at 1x: annScore × 1', () => {
+    const { score } = annihilateAdjacent(makeGrid([[CENTER_ROW, CENTER_COL, 3], [CENTER_ROW, CENTER_COL + 1, 3]]), CFG);
+    expect(score * 1).toBe(6); // 2 tiles × value 3 × combo 1
+  });
+
+  test('score at 2x: annScore × 2', () => {
+    const { score } = annihilateAdjacent(makeGrid([[CENTER_ROW, CENTER_COL, 3], [CENTER_ROW, CENTER_COL + 1, 3]]), CFG);
+    expect(score * 2).toBe(12); // 2 tiles × value 3 × combo 2
+  });
+
+  test('score at 5x (max): annScore × 5', () => {
+    const { score } = annihilateAdjacent(makeGrid([[CENTER_ROW, CENTER_COL, 2], [CENTER_ROW, CENTER_COL + 1, 2]]), CFG);
+    expect(score * 5).toBe(20); // 2 tiles × value 2 × combo 5
   });
 });

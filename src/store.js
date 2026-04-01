@@ -44,6 +44,7 @@ function initState(mode = '9x9') {
     bottomPending:  createInitialPending(cfg),
     score:          0,
     highScore:      loadHighScore(),
+    combo:          1,
     gameOver:       false,
     animating:      false,
     flyingTiles:    [],
@@ -78,7 +79,7 @@ function buildFrozenSnapshot(grid, cfg) {
 }
 
 // ── Collapse + annihilate loop ─────────────────────────────────────────────
-function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide = 'left') {
+function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide = 'left', combo = 1) {
   const { cfg } = get();
   const { grid: collapsedGrid, midGrid, gravityMoves, horizontalMoves } = collapseGrid(grid, cfg, lastPushedSide);
 
@@ -89,7 +90,7 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
     if (annihilatedCells.length === 0) {
       // Cascade fully settled — transition is atomic (never passes through null)
       // to avoid Arena re-deriving visibility from a mismatched grid mid-render.
-      set({ animating: false, frozenPendingRows: buildFrozenSnapshot(settled, curCfg), ...pendingPayload });
+      set({ animating: false, combo: 1, frozenPendingRows: buildFrozenSnapshot(settled, curCfg), ...pendingPayload });
       if (checkGameOver(settled, newDL, newDR, newDT, newDB, curCfg)) {
         const currentScore = get().score;
         const currentHighScore = get().highScore;
@@ -105,13 +106,15 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
       return;
     }
 
+    const nextCombo_ = nextCombo(combo);
     set({
-      score: get().score + annScore,
+      score: get().score + annScore * combo,
+      combo: combo,
       annihilateSet: new Set(annihilatedCells.map(([r, c]) => `${r},${c}`)),
     });
     setTimeout(() => {
       set({ grid: annGrid, annihilateSet: new Set() });
-      runCollapseLoop(annGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide);
+      runCollapseLoop(annGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide, nextCombo_);
     }, FLASH_MS);
   };
 
@@ -191,6 +194,7 @@ const useGameStore = create((set, get) => ({
   triggerPush(direction) {
     const s = get();
     if (s.animating || s.gameOver) return;
+    set({ combo: 1 });
 
     const { cfg, layout } = s;
     let pushFn, pendingArg, pendingKey, getPendingPos;
