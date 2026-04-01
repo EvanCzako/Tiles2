@@ -1,10 +1,10 @@
 export const ROWS = 9;
 export const COLS = 9;
-export const PENDING_SIZE = 5;          // all four sides: 5 slots each
-export const CENTER_COL = Math.floor(COLS / 2); // 4
-export const CENTER_ROW = Math.floor(ROWS / 2); // 4
-export const PENDING_ROW_START = CENTER_ROW - Math.floor(PENDING_SIZE / 2); // 2
-export const PENDING_COL_START = CENTER_COL - Math.floor(PENDING_SIZE / 2); // 2
+export const PENDING_SIZE = 5;
+export const CENTER_COL = Math.floor(COLS / 2);
+export const CENTER_ROW = Math.floor(ROWS / 2);
+export const PENDING_ROW_START = CENTER_ROW - Math.floor(PENDING_SIZE / 2);
+export const PENDING_COL_START = CENTER_COL - Math.floor(PENDING_SIZE / 2);
 
 export const GRID_CONFIGS = {
   '9x9': {
@@ -65,10 +65,8 @@ export function pushFromLeft(grid, leftPending, cfg = DEFAULT_CFG) {
   const { COLS, PENDING_SIZE, PENDING_ROW_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map(row => [...row]);
   const newPending = [...leftPending];
-  const mergedCells = [];
   const landings = [];
   const blockedIndices = [];
-  let score = 0;
 
   const rowLeftmost = [];
   for (let i = 0; i < PENDING_SIZE; i++) {
@@ -105,17 +103,15 @@ export function pushFromLeft(grid, leftPending, cfg = DEFAULT_CFG) {
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
   }
 
-  return { grid: newGrid, pending: newPending, mergedCells, landings, blockedIndices, score };
+  return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
 export function pushFromRight(grid, rightPending, cfg = DEFAULT_CFG) {
   const { COLS, PENDING_SIZE, PENDING_ROW_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map(row => [...row]);
   const newPending = [...rightPending];
-  const mergedCells = [];
   const landings = [];
   const blockedIndices = [];
-  let score = 0;
 
   const rowRightmost = [];
   for (let i = 0; i < PENDING_SIZE; i++) {
@@ -152,17 +148,15 @@ export function pushFromRight(grid, rightPending, cfg = DEFAULT_CFG) {
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
   }
 
-  return { grid: newGrid, pending: newPending, mergedCells, landings, blockedIndices, score };
+  return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
 export function pushFromTop(grid, topPending, cfg = DEFAULT_CFG) {
   const { ROWS, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map(row => [...row]);
   const newPending = [...topPending];
-  const mergedCells = [];
   const landings = [];
   const blockedIndices = [];
-  let score = 0;
 
   for (let i = 0; i < newPending.length; i++) {
     const col = PENDING_COL_START + i;
@@ -192,17 +186,15 @@ export function pushFromTop(grid, topPending, cfg = DEFAULT_CFG) {
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
   }
 
-  return { grid: newGrid, pending: newPending, mergedCells, landings, blockedIndices, score };
+  return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
 export function pushFromBottom(grid, bottomPending, cfg = DEFAULT_CFG) {
   const { ROWS, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map(row => [...row]);
   const newPending = [...bottomPending];
-  const mergedCells = [];
   const landings = [];
   const blockedIndices = [];
-  let score = 0;
 
   for (let i = 0; i < newPending.length; i++) {
     const col = PENDING_COL_START + i;
@@ -232,7 +224,7 @@ export function pushFromBottom(grid, bottomPending, cfg = DEFAULT_CFG) {
     newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
   }
 
-  return { grid: newGrid, pending: newPending, mergedCells, landings, blockedIndices, score };
+  return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
 // Collapse multi-step chains (A→B then B→C) into net moves (A→C).
@@ -259,7 +251,7 @@ function consolidateMoves(moves) {
   return result.filter(m => m.fromRow !== m.toRow || m.fromCol !== m.toCol);
 }
 
-export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
+export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', lastHorizontalSide = 'left') {
   const { ROWS, COLS, CENTER_COL, CENTER_ROW } = cfg;
   const newGrid = grid.map(row => [...row]);
   const gravityMoves = [];
@@ -271,7 +263,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
     for (let c = 0; c < COLS; c++) {
       const colSnapshot = newGrid.map(row => row[c]);
 
-      if (lastPushedSide === 'bottom') {
+      if (lastVerticalSide === 'bottom') {
         // Bottom claims CENTER_ROW
         // Bottom tiles (rows CENTER_ROW..ROWS-1): pack upward to CENTER_ROW
         {
@@ -318,7 +310,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
           }
         }
       } else {
-        // Top claims CENTER_ROW (lastPushedSide is 'top', 'left', or 'right')
+        // Top claims CENTER_ROW
         // Top tiles (rows 0..CENTER_ROW): pack downward to CENTER_ROW
         {
           const tiles = [];
@@ -382,7 +374,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
         bottommost = r;
       }
     }
-    // All tiles above CENTER_ROW: slide down to fill CENTER_ROW
+    // All tiles above CENTER_ROW: slide down to fill it
     if (bottommost < CENTER_ROW) {
       const tiles = [], fromRows = [];
       for (let r = topmost; r <= bottommost; r++) {
@@ -396,7 +388,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
         dest++;
       }
     }
-    // All tiles below CENTER_ROW: slide up to fill CENTER_ROW
+    // All tiles below CENTER_ROW: slide up to fill it
     else if (topmost > CENTER_ROW) {
       const tiles = [], fromRows = [];
       for (let r = topmost; r <= bottommost; r++) {
@@ -415,15 +407,15 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
   // Snapshot after gravity, before horizontal — needed for staged animation
   const midGrid = newGrid.map(row => [...row]);
 
-  // Phase 2: horizontal (inward) to stability — runs only after gravity is settled
-  // The most recently pushed side gets priority for the center column
+  // Phase 2: horizontal collapse toward CENTER_COL — lastHorizontalSide claims CENTER_COL
   while (true) {
     const moves = [];
     for (let r = 0; r < ROWS; r++) {
       const rowSnapshot = [...newGrid[r]];
 
-      if (lastPushedSide === 'left') {
-        // Left side pushes right toward the center and can occupy CENTER_COL
+      if (lastHorizontalSide === 'left') {
+        // Left claims CENTER_COL
+        // Left tiles (cols 0..CENTER_COL): pack rightward to CENTER_COL
         {
           const tiles = [];
           for (let c = 0; c <= CENTER_COL; c++) {
@@ -442,8 +434,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
             }
           }
         }
-
-        // Right side packs left but stays right of left tiles (never goes below CENTER_COL + 1)
+        // Right tiles (cols CENTER_COL+1..COLS-1): pack leftward, stay ≥ CENTER_COL+1
         {
           const tiles = [];
           for (let c = CENTER_COL + 1; c < COLS; c++) {
@@ -454,8 +445,6 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
             for (let c = CENTER_COL; c >= 0; c--) {
               if (newGrid[r][c] !== 0) { rightmostLeftTile = c; break; }
             }
-            // Right side tiles always stay at CENTER_COL + 1 or right, never fill gaps on left
-            // Also clamp to not overhang the right edge
             let destStart = Math.max(CENTER_COL + 1, rightmostLeftTile + 1);
             destStart = Math.min(destStart, COLS - tiles.length);
             const already = tiles.every((t, i) => t.c === destStart + i);
@@ -471,7 +460,8 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
           }
         }
       } else {
-        // Right side pushes left toward the center and can occupy CENTER_COL
+        // Right claims CENTER_COL
+        // Right tiles (cols CENTER_COL..COLS-1): pack leftward to CENTER_COL
         {
           const tiles = [];
           for (let c = CENTER_COL; c < COLS; c++) {
@@ -490,8 +480,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
             }
           }
         }
-
-        // Left side packs right but stays left of right tiles (never goes above CENTER_COL)
+        // Left tiles (cols 0..CENTER_COL-1): pack rightward, stay ≤ CENTER_COL-1
         {
           const tiles = [];
           for (let c = 0; c < CENTER_COL; c++) {
@@ -502,8 +491,6 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
             for (let c = CENTER_COL; c < COLS; c++) {
               if (newGrid[r][c] !== 0) { leftmostRightTile = c; break; }
             }
-            // Left side tiles always stay at CENTER_COL or left, never fill gaps on right
-            // Also clamp to not go below column 0
             let destEnd = Math.min(CENTER_COL, leftmostRightTile - 1);
             destEnd = Math.max(destEnd, tiles.length - 1);
             const already = tiles.every((t, i) => t.c === destEnd - tiles.length + 1 + i);
@@ -524,14 +511,12 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
     if (moves.length === 0) break;
   }
 
-  // Post-processing: ensure if a row has live tiles, CENTER_COL is filled
+  // Post-processing: ensure CENTER_COL is filled in any row that has live tiles
   for (let r = 0; r < ROWS; r++) {
     const hasLive = newGrid[r].some(v => v !== 0);
     if (!hasLive) continue;
-    
-    if (newGrid[r][CENTER_COL] !== 0) continue; // Already filled
-    
-    // Find leftmost and rightmost tiles in the row
+    if (newGrid[r][CENTER_COL] !== 0) continue;
+
     let leftmost = -1, rightmost = -1;
     for (let c = 0; c < COLS; c++) {
       if (newGrid[r][c] !== 0) {
@@ -539,48 +524,31 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastPushedSide = 'left') {
         rightmost = c;
       }
     }
-    
-    // If all tiles are on the left, slide right to fill CENTER_COL
+    // All tiles left of CENTER_COL: slide right to fill it
     if (rightmost < CENTER_COL) {
-      const tiles = [];
-      const fromCols = [];
+      const tiles = [], fromCols = [];
       for (let c = leftmost; c <= rightmost; c++) {
-        if (newGrid[r][c] !== 0) {
-          tiles.push(newGrid[r][c]);
-          fromCols.push(c);
-        }
+        if (newGrid[r][c] !== 0) { tiles.push(newGrid[r][c]); fromCols.push(c); }
         newGrid[r][c] = 0;
       }
       let dest = CENTER_COL + 1 - tiles.length;
       for (let i = 0; i < tiles.length; i++) {
-        const v = tiles[i];
-        const fromCol = fromCols[i];
-        newGrid[r][dest] = v;
-        if (fromCol !== dest) {
-          horizontalMoves.push({ value: v, fromRow: r, fromCol, toRow: r, toCol: dest });
-        }
+        newGrid[r][dest] = tiles[i];
+        if (fromCols[i] !== dest) horizontalMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
         dest++;
       }
     }
-    // If all tiles are on the right, slide left to fill CENTER_COL
+    // All tiles right of CENTER_COL: slide left to fill it
     else if (leftmost > CENTER_COL) {
-      const tiles = [];
-      const fromCols = [];
+      const tiles = [], fromCols = [];
       for (let c = leftmost; c <= rightmost; c++) {
-        if (newGrid[r][c] !== 0) {
-          tiles.push(newGrid[r][c]);
-          fromCols.push(c);
-        }
+        if (newGrid[r][c] !== 0) { tiles.push(newGrid[r][c]); fromCols.push(c); }
         newGrid[r][c] = 0;
       }
       let dest = CENTER_COL;
       for (let i = 0; i < tiles.length; i++) {
-        const v = tiles[i];
-        const fromCol = fromCols[i];
-        newGrid[r][dest] = v;
-        if (fromCol !== dest) {
-          horizontalMoves.push({ value: v, fromRow: r, fromCol, toRow: r, toCol: dest });
-        }
+        newGrid[r][dest] = tiles[i];
+        if (fromCols[i] !== dest) horizontalMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
         dest++;
       }
     }

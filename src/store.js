@@ -60,6 +60,8 @@ function initState(mode = '9x9') {
     disabledBottom: new Set(),
     pendingCommit:  null,
     frozenPendingRows: null,  // snapshot of per-row activity at push time; held through cascade
+    lastVerticalSide:   'top',   // last side pushed on vertical axis: 'top' or 'bottom'
+    lastHorizontalSide: 'left',  // last side pushed on horizontal axis: 'left' or 'right'
   };
 }
 
@@ -79,9 +81,9 @@ function buildFrozenSnapshot(grid, cfg) {
 }
 
 // ── Collapse + annihilate loop ─────────────────────────────────────────────
-function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide = 'left', combo = 1) {
+function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastVerticalSide = 'top', lastHorizontalSide = 'left', combo = 1) {
   const { cfg } = get();
-  const { grid: collapsedGrid, midGrid, gravityMoves, horizontalMoves } = collapseGrid(grid, cfg, lastPushedSide);
+  const { grid: collapsedGrid, midGrid, gravityMoves, horizontalMoves } = collapseGrid(grid, cfg, lastVerticalSide, lastHorizontalSide);
 
   const afterCollapse = (settled) => {
     const curCfg = get().cfg;
@@ -114,7 +116,7 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
     });
     setTimeout(() => {
       set({ grid: annGrid, annihilateSet: new Set() });
-      runCollapseLoop(annGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide, nextCombo_);
+      runCollapseLoop(annGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastVerticalSide, lastHorizontalSide, nextCombo_);
     }, FLASH_MS);
   };
 
@@ -212,13 +214,22 @@ const useGameStore = create((set, get) => ({
       pendingKey = 'bottomPending'; getPendingPos = i => bottomPendingPos(i, layout);
     } else return;
 
+    // Track each axis independently so left/right pushes don't bias the vertical
+    // center, and top/bottom pushes don't bias the horizontal center.
+    const newVerticalSide   = pendingKey === 'topPending'    ? 'top'
+                            : pendingKey === 'bottomPending' ? 'bottom'
+                            : s.lastVerticalSide;
+    const newHorizontalSide = pendingKey === 'leftPending'   ? 'left'
+                            : pendingKey === 'rightPending'  ? 'right'
+                            : s.lastHorizontalSide;
+
     const disabled = pendingKey === 'leftPending'   ? s.disabledLeft
                    : pendingKey === 'rightPending'  ? s.disabledRight
                    : pendingKey === 'topPending'    ? s.disabledTop
                    : s.disabledBottom;
     const filteredPending = pendingArg.map((v, i) => disabled.has(i) ? 0 : v);
     const result = pushFn(s.grid, filteredPending, cfg);
-    const { landings, mergedCells, score: pushScore, blockedIndices } = result;
+    const { landings, blockedIndices } = result;
 
     // Snapshot row activity BEFORE the push so pending columns stay frozen at
     // pre-swipe height for the entire cascade.
@@ -228,8 +239,6 @@ const useGameStore = create((set, get) => ({
 
     const pc = {
       payload:       { grid: result.grid, [pendingKey]: result.pending },
-      mergedCells,
-      pushScore,
       blockedIndices,
       pendingKey,
     };
@@ -267,17 +276,19 @@ const useGameStore = create((set, get) => ({
 
       set({
         ...pc.payload,
-        disabledLeft:   newDL,
-        disabledRight:  newDR,
-        disabledTop:    newDT,
-        disabledBottom: newDB,
+        disabledLeft:       newDL,
+        disabledRight:      newDR,
+        disabledTop:        newDT,
+        disabledBottom:     newDB,
+        lastVerticalSide:   newVerticalSide,
+        lastHorizontalSide: newHorizontalSide,
         redFlashSet:    blockedIndices.length > 0 ? new Set(blockedIndices) : new Set(),
         redFlashSource: blockedIndices.length > 0 ? pendingKey : null,
       });
       if (blockedIndices.length > 0)
         setTimeout(() => set({ redFlashSet: new Set(), redFlashSource: null }), FLASH_MS);
       if (checkGameOver(pc.payload.grid, newDL, newDR, newDT, newDB, cfg)) {
-        const currentScore = get().score + pushScore;
+        const currentScore = get().score;
         const currentHighScore = get().highScore;
         const newHighScore = Math.max(currentScore, currentHighScore);
         saveHighScore(newHighScore);
@@ -305,7 +316,7 @@ const useGameStore = create((set, get) => ({
     setTimeout(() => {
       const cur = get();
       const { pendingCommit: commit } = cur;
-      const { payload, mergedCells: mc, pushScore: ps, blockedIndices: blocked, pendingKey: pKey } = commit;
+      const { payload, blockedIndices: blocked, pendingKey: pKey } = commit;
 
       const newDL = pKey === 'leftPending'   ? new Set([...cur.disabledLeft,   ...blocked]) : cur.disabledLeft;
       const newDR = pKey === 'rightPending'  ? new Set([...cur.disabledRight,  ...blocked]) : cur.disabledRight;
@@ -313,7 +324,6 @@ const useGameStore = create((set, get) => ({
       const newDB = pKey === 'bottomPending' ? new Set([...cur.disabledBottom, ...blocked]) : cur.disabledBottom;
 
       set({
-        score:          cur.score + ps,
         flyingTiles:    [],
         flyingSource:   null,
         redFlashSet:    new Set(),
@@ -325,18 +335,10 @@ const useGameStore = create((set, get) => ({
         pendingCommit:  null,
       });
 
-      if (mc.length > 0) {
-        set({ flashSet: new Set(mc.map(([r, c]) => `${r},${c}`)) });
-        setTimeout(() => set({ flashSet: new Set() }), FLASH_MS);
-      }
-
       // Commit the grid + intermediate pending (used slots zeroed); hold refreshed pending for cascade end
       const { grid: payloadGrid, ...pendingPayload } = payload;
-      set({ grid: payloadGrid, [pendingKey]: intermediatePending });
-      
-      // Determine which side was pushed to inform collapse logic
-      const lastPushedSide = pKey === 'leftPending' ? 'left' : pKey === 'rightPending' ? 'right' : pKey === 'topPending' ? 'top' : 'bottom';
-      runCollapseLoop(payloadGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastPushedSide);
+      set({ grid: payloadGrid, [pendingKey]: intermediatePending, lastVerticalSide: newVerticalSide, lastHorizontalSide: newHorizontalSide });
+      runCollapseLoop(payloadGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, newVerticalSide, newHorizontalSide);
     }, ANIM_MS + 30);
   },
 }));
