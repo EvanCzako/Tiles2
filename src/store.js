@@ -75,8 +75,23 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
     const { annihilatedCells, grid: annGrid, score: annScore } = annihilateAdjacent(settled, curCfg);
 
     if (annihilatedCells.length === 0) {
+      // Compute a fresh frozen snapshot from the settled grid so the transition
+      // from "animation frozen" to "post-cascade" is atomic — no null frame that
+      // causes Arena to re-derive visibility from a mismatched grid mid-render.
+      const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = curCfg;
+      const gridEmpty = settled.every(row => row.every(v => v === 0));
+      const centerRowIdx = CENTER_ROW - PENDING_ROW_START;
+      const centerColIdx = CENTER_COL - PENDING_COL_START;
+      const rowActive = i => settled[PENDING_ROW_START + i].some(v => v !== 0) || (gridEmpty && i === centerRowIdx);
+      const colActive = i => settled.some(row => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
+      const freshFrozen = {
+        left:   Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
+        right:  Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
+        top:    Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
+        bottom: Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
+      };
       // Cascade fully settled — now reveal the refreshed pending tiles
-      set({ animating: false, frozenPendingRows: null, ...pendingPayload });
+      set({ animating: false, frozenPendingRows: freshFrozen, ...pendingPayload });
       if (checkGameOver(settled, newDL, newDR, newDT, newDB, curCfg)) {
         const currentScore = get().score;
         const currentHighScore = get().highScore;
@@ -205,9 +220,12 @@ const useGameStore = create((set, get) => ({
 
     // Snapshot row activity BEFORE the push so pending columns stay frozen at
     // pre-swipe height for the entire cascade.
-    const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START } = cfg;
-    const rowActive = i => s.grid[PENDING_ROW_START + i].some(v => v !== 0);
-    const colActive = i => s.grid.some(row => row[PENDING_COL_START + i] !== 0);
+    const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
+    const gridEmpty = s.grid.every(row => row.every(v => v === 0));
+    const centerRowIdx = CENTER_ROW - PENDING_ROW_START;
+    const centerColIdx = CENTER_COL - PENDING_COL_START;
+    const rowActive = i => s.grid[PENDING_ROW_START + i].some(v => v !== 0) || (gridEmpty && i === centerRowIdx);
+    const colActive = i => s.grid.some(row => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
     const frozenPendingRows = {
       left:   Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
       right:  Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
