@@ -3,6 +3,7 @@ import {
   GRID_CONFIGS,
   createInitialGrid, createInitialPending, createInitialTopPending,
   pushFromLeft, pushFromRight, pushFromTop, pushFromBottom, collapseGrid, annihilateAdjacent,
+  sideCanLand, checkGameOver,
 } from './gameLogic';
 import { CELL, GAP, ANIM_MS, FLASH_MS, AUTO_MOVE_MS } from './constants';
 import { getLayout, cellPos, leftPendingPos, rightPendingPos, topPendingPos, bottomPendingPos } from './layout';
@@ -10,28 +11,14 @@ import { getLayout, cellPos, leftPendingPos, rightPendingPos, topPendingPos, bot
 // Re-export for backward compatibility
 export { CELL, GAP, ANIM_MS };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
 function getAvailableDirections(s) {
-  const { grid, leftPending, rightPending, topPending, bottomPending, disabledLeft, disabledRight, disabledTop, disabledBottom, cfg } = s;
-  const { PENDING_SIZE, PENDING_ROW_START } = cfg;
-  const rowActive = i => grid[PENDING_ROW_START + i].some(v => v !== 0);
+  const { grid, disabledLeft, disabledRight, disabledTop, disabledBottom, cfg } = s;
   const dirs = [];
-  if (leftPending.some(  (v, i) => v !== 0 && !disabledLeft.has(i)   && i < PENDING_SIZE && rowActive(i))) dirs.push('right');
-  if (rightPending.some( (v, i) => v !== 0 && !disabledRight.has(i)  && i < PENDING_SIZE && rowActive(i))) dirs.push('left');
-  if (topPending.some(   (v, i) => v !== 0 && !disabledTop.has(i)    && i < PENDING_SIZE))                 dirs.push('down');
-  if (bottomPending.some((v, i) => v !== 0 && !disabledBottom.has(i) && i < PENDING_SIZE))                 dirs.push('up');
+  if (sideCanLand(grid, disabledLeft,   cfg, 'row')) dirs.push('right');
+  if (sideCanLand(grid, disabledRight,  cfg, 'row')) dirs.push('left');
+  if (sideCanLand(grid, disabledTop,    cfg, 'col')) dirs.push('down');
+  if (sideCanLand(grid, disabledBottom, cfg, 'col')) dirs.push('up');
   return dirs;
-}
-
-function checkGameOver(grid, dl, dr, dt, db, cfg) {
-  const { PENDING_SIZE, PENDING_ROW_START } = cfg;
-  const rowAct = i => grid[PENDING_ROW_START + i].some(v => v !== 0);
-  return (
-    Array.from({ length: PENDING_SIZE }, (_, i) => i).every(i => !rowAct(i) || dl.has(i)) &&
-    Array.from({ length: PENDING_SIZE }, (_, i) => i).every(i => !rowAct(i) || dr.has(i)) &&
-    Array.from({ length: PENDING_SIZE }, (_, i) => i).every(i => dt.has(i)) &&
-    Array.from({ length: PENDING_SIZE }, (_, i) => i).every(i => db.has(i))
-  );
 }
 
 function loadHighScore() {

@@ -677,6 +677,32 @@ export function isDeadCell(r, c) {
   return false;
 }
 
+// Returns true if a given side can land at least one tile on the board.
+// axis='row' for left/right sides (indexed by row); axis='col' for top/bottom (indexed by col).
+// A slot can land if it isn't disabled AND (its row/col has live tiles OR it's the center slot).
+export function sideCanLand(grid, disabled, cfg, axis) {
+  const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
+  const centerIdx = axis === 'row'
+    ? CENTER_ROW - PENDING_ROW_START
+    : CENTER_COL - PENDING_COL_START;
+  const isActive = axis === 'row'
+    ? i => grid[PENDING_ROW_START + i].some(v => v !== 0)
+    : i => grid.some(row => row[PENDING_COL_START + i] !== 0);
+  for (let i = 0; i < PENDING_SIZE; i++) {
+    if (!disabled.has(i) && (isActive(i) || i === centerIdx)) return true;
+  }
+  return false;
+}
+
+export function checkGameOver(grid, dl, dr, dt, db, cfg) {
+  return (
+    !sideCanLand(grid, dl, cfg, 'row') &&
+    !sideCanLand(grid, dr, cfg, 'row') &&
+    !sideCanLand(grid, dt, cfg, 'col') &&
+    !sideCanLand(grid, db, cfg, 'col')
+  );
+}
+
 export function getTileColor(value) {
   const colors = {
     0:  { bg: '#1e1e38', text: 'transparent' },

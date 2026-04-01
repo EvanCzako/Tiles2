@@ -2,7 +2,7 @@ import {
   ROWS, COLS, PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_COL, CENTER_ROW,
   createInitialGrid, createInitialPending, createInitialTopPending,
   pushFromLeft, pushFromRight, pushFromTop, pushFromBottom,
-  collapseGrid, annihilateAdjacent,
+  collapseGrid, annihilateAdjacent, sideCanLand, checkGameOver,
 } from './gameLogic.js';
 
 // Helper: build a sparse 9×9 grid from a list of [row, col, value] triples.
@@ -792,5 +792,113 @@ describe('annihilateAdjacent', () => {
     const { annihilatedCells, score } = annihilateAdjacent(grid);
     expect(annihilatedCells.length).toBe(0);
     expect(score).toBe(0);
+  });
+});
+
+// ── sideCanLand / checkGameOver ──────────────────────────────────────────────
+
+const CFG = {
+  ROWS, COLS, PENDING_SIZE,
+  PENDING_ROW_START, PENDING_COL_START,
+  CENTER_ROW, CENTER_COL,
+};
+const NONE = new Set(); // no disabled slots
+
+describe('sideCanLand', () => {
+  test('empty grid: center slot (idx 2) always lands for row side', () => {
+    const grid = makeGrid([]);
+    expect(sideCanLand(grid, NONE, CFG, 'row')).toBe(true);
+  });
+
+  test('empty grid: center slot (idx 2) always lands for col side', () => {
+    const grid = makeGrid([]);
+    expect(sideCanLand(grid, NONE, CFG, 'col')).toBe(true);
+  });
+
+  test('empty grid: all slots disabled → cannot land', () => {
+    const grid = makeGrid([]);
+    const allDisabled = new Set([0, 1, 2, 3, 4]);
+    expect(sideCanLand(grid, allDisabled, CFG, 'row')).toBe(false);
+  });
+
+  test('tile in row 2 (idx 0): non-center slot active, none disabled → can land', () => {
+    // PENDING_ROW_START=2, so row 2 is slot index 0
+    const grid = makeGrid([[2, CENTER_COL, 1]]);
+    expect(sideCanLand(grid, NONE, CFG, 'row')).toBe(true);
+  });
+
+  test('tile in row 2 (idx 0): slot 0 disabled, center (idx 2) still active → can land', () => {
+    const grid = makeGrid([[2, CENTER_COL, 1]]);
+    const d = new Set([0]);
+    // center slot idx=2 is empty but center slot always counts → true
+    expect(sideCanLand(grid, d, CFG, 'row')).toBe(true);
+  });
+
+  test('tile only in non-center row, that slot disabled, no center tile → cannot land', () => {
+    // tile at row 2 (idx 0). disable idx 0 and center idx 2. No other active rows.
+    const grid = makeGrid([[2, CENTER_COL, 1]]);
+    const d = new Set([0, 2]);
+    expect(sideCanLand(grid, d, CFG, 'row')).toBe(false);
+  });
+
+  test('tile in col 2 (idx 0 for col side): not disabled → can land', () => {
+    // PENDING_COL_START=2, so col 2 is slot index 0
+    const grid = makeGrid([[CENTER_ROW, 2, 1]]);
+    expect(sideCanLand(grid, NONE, CFG, 'col')).toBe(true);
+  });
+
+  test('tile in col 2 (idx 0): slot 0 disabled, center col (idx 2) empty but active → can land', () => {
+    const grid = makeGrid([[CENTER_ROW, 2, 1]]);
+    const d = new Set([0]);
+    expect(sideCanLand(grid, d, CFG, 'col')).toBe(true);
+  });
+});
+
+describe('checkGameOver', () => {
+  test('empty board with no disabled slots is NOT game over', () => {
+    const grid = makeGrid([]);
+    expect(checkGameOver(grid, NONE, NONE, NONE, NONE, CFG)).toBe(false);
+  });
+
+  test('center-only tile: no slots disabled → NOT game over', () => {
+    // The "only center tile" scenario from the issue
+    const grid = makeGrid([[CENTER_ROW, CENTER_COL, 1]]);
+    expect(checkGameOver(grid, NONE, NONE, NONE, NONE, CFG)).toBe(false);
+  });
+
+  test('all 4 sides fully disabled → game over', () => {
+    const grid = makeGrid([[CENTER_ROW, CENTER_COL, 1]]);
+    const all = new Set([0, 1, 2, 3, 4]);
+    expect(checkGameOver(grid, all, all, all, all, CFG)).toBe(true);
+  });
+
+  test('only one side can still land → NOT game over', () => {
+    // left/right rows 2 and 4 (idx 0, 2) all blocked; top/bottom cols all blocked
+    // but right side center row (idx 2) not disabled, and center row has a tile
+    const grid = makeGrid([[CENTER_ROW, CENTER_COL, 1]]);
+    const all = new Set([0, 1, 2, 3, 4]);
+    const rightOpen = new Set([0, 1, 3, 4]); // center idx 2 still open on right side
+    expect(checkGameOver(grid, all, rightOpen, all, all, CFG)).toBe(false);
+  });
+
+  test('active non-center rows fully blocked, center disabled → game over for that axis', () => {
+    // row side: tile at row 2 (idx 0), disable idx 0 and idx 2 (center)
+    // Nothing else active → row sides cannot land
+    const grid = makeGrid([[PENDING_ROW_START, CENTER_COL, 1]]);
+    const rowBlocked = new Set([0, 2]); // idx 0 (matching row) and center
+    // col sides: grid has tile only in CENTER_ROW, but those col sides are also blocked
+    const colBlocked = new Set([0, 1, 2, 3, 4]);
+    expect(checkGameOver(grid, rowBlocked, rowBlocked, colBlocked, colBlocked, CFG)).toBe(true);
+  });
+
+  test('packed grid with only outermost columns full → game over only when all edges blocked', () => {
+    // fill col 0 and col 8 fully (outside pending range → never active for col sides)
+    // and rows 0 and 8 fully (outside pending range → never active for row sides)
+    // center slot not disabled → NOT game over
+    const entries = [];
+    for (let r = 0; r < ROWS; r++) entries.push([r, 0, 1], [r, COLS - 1, 1]);
+    for (let c = 1; c < COLS - 1; c++) entries.push([0, c, 1], [ROWS - 1, c, 1]);
+    const grid = makeGrid(entries);
+    expect(checkGameOver(grid, NONE, NONE, NONE, NONE, CFG)).toBe(false);
   });
 });
