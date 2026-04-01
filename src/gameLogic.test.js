@@ -556,9 +556,16 @@ describe('Symmetry: no preferential treatment', () => {
 // Move Animation Integrity
 // Verifies that gravityMoves / horizontalMoves are correct so every tile that
 // changes position has exactly one animation entry going to its real destination.
-// The key regression: consolidateMoves used to chain moves by position alone,
-// causing tile A (landing at row B) to be merged with tile B (departing row B),
-// making tile A fly too far and tile B lose its animation entirely.
+//
+// Regression 1 (different values): consolidateMoves used to chain moves by
+// position alone, causing tile A (landing at row B) to be merged with tile B
+// (departing row B), making tile A fly too far and tile B lose its animation.
+//
+// Regression 2 (same value): consolidateCrossPhase must never chain two moves
+// that occur in the same while-loop pass, even when they have the same value
+// and the destination of one equals the source of the other. Two tiles of the
+// same value packed in a single pass (e.g., v=4 at rows 0 and 3 both sliding
+// to rows 3 and 4) must each get their own animation.
 // ---------------------------------------------------------------------------
 
 describe('Move Animation Integrity — gravity', () => {
@@ -603,6 +610,40 @@ describe('Move Animation Integrity — gravity', () => {
     expect(m2?.toRow).toBe(3);  // one row down
     expect(m3?.fromRow).toBe(3);
     expect(m3?.toRow).toBe(4);  // one row down
+  });
+
+  test('[BUG] two same-value tiles in same column: each gets its own gravity move', () => {
+    // tile1 (v=4) at row 0, tile2 (v=4) at row 3 — both pack down.
+    // In the while-loop pass, tile1 lands at row 3 and tile2 moves from row 3 to row 4.
+    // These are two DIFFERENT tiles; must NOT be chained into one move {0→4}.
+    const grid = makeGrid([[0, CENTER_COL, 4], [3, CENTER_COL, 4]]);
+    const { grid: g, gravityMoves } = collapseGrid(grid);
+
+    expect(g[3][CENTER_COL]).toBe(4);
+    expect(g[4][CENTER_COL]).toBe(4);
+    expect(gravityMoves.length).toBe(2); // two separate animations
+
+    const m1 = gravityMoves.find(m => m.fromRow === 0);
+    const m2 = gravityMoves.find(m => m.fromRow === 3);
+    expect(m1?.toRow).toBe(3); // must NOT be 4
+    expect(m2?.toRow).toBe(4);
+  });
+
+  test('[BUG] two same-value tiles in same row: each gets its own horizontal move', () => {
+    // tile1 (v=3) at col 0, tile2 (v=3) at col 3 — both pack right toward CENTER_COL.
+    // tile1 lands at col 3 and tile2 moves from col 3 to col 4 (CENTER_COL).
+    // These are two DIFFERENT tiles; must NOT be chained into one move {0→4}.
+    const grid = makeGrid([[CENTER_ROW, 0, 3], [CENTER_ROW, 3, 3]]);
+    const { grid: g, horizontalMoves } = collapseGrid(grid, undefined, 'top', 'left');
+
+    expect(g[CENTER_ROW][3]).toBe(3);
+    expect(g[CENTER_ROW][4]).toBe(3);
+    expect(horizontalMoves.length).toBe(2);
+
+    const m1 = horizontalMoves.find(m => m.fromCol === 0);
+    const m2 = horizontalMoves.find(m => m.fromCol === 3);
+    expect(m1?.toCol).toBe(3); // must NOT be 4
+    expect(m2?.toCol).toBe(4);
   });
 
   test('valid cross-phase chain: same tile moved by while-loop then post-processing merges correctly', () => {

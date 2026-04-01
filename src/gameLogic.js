@@ -227,24 +227,24 @@ export function pushFromBottom(grid, bottomPending, cfg = DEFAULT_CFG) {
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
-// Collapse multi-step chains (A→B then B→C) into net moves (A→C).
-// This prevents ghost FlyingTile animations starting from intermediate positions.
-function consolidateMoves(moves) {
-  // Keys include value so different tiles that happen to share a position
-  // are never incorrectly chained (e.g. tile A lands where tile B started).
-  const destToIdx = new Map(); // "toRow,toCol,value" → index in result
-  const result = [];
-  for (const m of moves) {
+// Merge post-processing moves into their corresponding while-loop moves when they
+// represent the same tile continuing its journey (A→B in the loop, B→C in post-processing
+// → net move A→C). Within a single while-loop pass every move is a distinct tile, so
+// chaining must only happen across the phase boundary, never within a single phase.
+function consolidateCrossPhase(mainMoves, postMoves) {
+  const destToIdx = new Map();
+  const result = mainMoves.map(m => ({ ...m }));
+  for (let i = 0; i < result.length; i++) {
+    destToIdx.set(`${result[i].toRow},${result[i].toCol},${result[i].value}`, i);
+  }
+  for (const m of postMoves) {
     const fromKey = `${m.fromRow},${m.fromCol},${m.value}`;
-    const toKey   = `${m.toRow},${m.toCol},${m.value}`;
     if (destToIdx.has(fromKey)) {
-      // Chain: previous move landed at fromKey, extend it to toKey
       const prevIdx = destToIdx.get(fromKey);
       destToIdx.delete(fromKey);
       result[prevIdx] = { ...result[prevIdx], toRow: m.toRow, toCol: m.toCol };
-      destToIdx.set(toKey, prevIdx);
+      destToIdx.set(`${m.toRow},${m.toCol},${m.value}`, prevIdx);
     } else {
-      destToIdx.set(toKey, result.length);
       result.push({ ...m });
     }
   }
@@ -254,8 +254,10 @@ function consolidateMoves(moves) {
 export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', lastHorizontalSide = 'left') {
   const { ROWS, COLS, CENTER_COL, CENTER_ROW } = cfg;
   const newGrid = grid.map(row => [...row]);
-  const gravityMoves = [];
-  const horizontalMoves = [];
+  const gravityWhileMoves = [];
+  const gravityPostMoves = [];
+  const horizontalWhileMoves = [];
+  const horizontalPostMoves = [];
 
   // Phase 1: gravity toward CENTER_ROW — always runs before horizontal
   while (true) {
@@ -357,7 +359,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', 
         }
       }
     }
-    gravityMoves.push(...moves);
+    gravityWhileMoves.push(...moves);
     if (moves.length === 0) break;
   }
 
@@ -384,7 +386,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', 
       let dest = CENTER_ROW + 1 - tiles.length;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[dest][c] = tiles[i];
-        if (fromRows[i] !== dest) gravityMoves.push({ value: tiles[i], fromRow: fromRows[i], fromCol: c, toRow: dest, toCol: c });
+        if (fromRows[i] !== dest) gravityPostMoves.push({ value: tiles[i], fromRow: fromRows[i], fromCol: c, toRow: dest, toCol: c });
         dest++;
       }
     }
@@ -398,7 +400,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', 
       let dest = CENTER_ROW;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[dest][c] = tiles[i];
-        if (fromRows[i] !== dest) gravityMoves.push({ value: tiles[i], fromRow: fromRows[i], fromCol: c, toRow: dest, toCol: c });
+        if (fromRows[i] !== dest) gravityPostMoves.push({ value: tiles[i], fromRow: fromRows[i], fromCol: c, toRow: dest, toCol: c });
         dest++;
       }
     }
@@ -507,7 +509,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', 
         }
       }
     }
-    horizontalMoves.push(...moves);
+    horizontalWhileMoves.push(...moves);
     if (moves.length === 0) break;
   }
 
@@ -534,7 +536,7 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', 
       let dest = CENTER_COL + 1 - tiles.length;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[r][dest] = tiles[i];
-        if (fromCols[i] !== dest) horizontalMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
+        if (fromCols[i] !== dest) horizontalPostMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
         dest++;
       }
     }
@@ -548,13 +550,13 @@ export function collapseGrid(grid, cfg = DEFAULT_CFG, lastVerticalSide = 'top', 
       let dest = CENTER_COL;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[r][dest] = tiles[i];
-        if (fromCols[i] !== dest) horizontalMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
+        if (fromCols[i] !== dest) horizontalPostMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
         dest++;
       }
     }
   }
 
-  return { grid: newGrid, midGrid, gravityMoves: consolidateMoves(gravityMoves), horizontalMoves: consolidateMoves(horizontalMoves) };
+  return { grid: newGrid, midGrid, gravityMoves: consolidateCrossPhase(gravityWhileMoves, gravityPostMoves), horizontalMoves: consolidateCrossPhase(horizontalWhileMoves, horizontalPostMoves) };
 }
 
 export function annihilateAdjacent(grid, cfg = DEFAULT_CFG) {
