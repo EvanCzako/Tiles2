@@ -3,7 +3,7 @@ import {
   GRID_CONFIGS,
   createInitialGrid, createInitialPending,
   pushFromLeft, pushFromRight, pushFromTop, pushFromBottom, collapseGrid, annihilateAdjacent,
-  sideCanLand, checkGameOver,
+  sideCanLand, checkGameOver, nextCombo,
 } from './gameLogic';
 import { CELL, GAP, ANIM_MS, FLASH_MS, AUTO_MOVE_MS } from './constants';
 import { getLayout, cellPos, leftPendingPos, rightPendingPos, topPendingPos, bottomPendingPos } from './layout';
