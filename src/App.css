@@ -29,9 +29,16 @@ html, body {
   overflow: hidden;
 }
 
+.game-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .title {
   color: #e0e0ff;
-  font-size: 2rem;
+  font-size: clamp(1.2rem, 5vw, 2rem);
   font-weight: 800;
   margin: 0;
 }
@@ -39,35 +46,40 @@ html, body {
 .score-row {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: clamp(8px, 3vw, 24px);
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .score {
   color: #a0a0cc;
-  font-size: 1.1rem;
+  font-size: clamp(0.72rem, 2.5vw, 1.1rem);
   font-weight: 600;
   margin: 0;
+  white-space: nowrap;
 }
 
 .high-score {
   color: #a0a0cc;
-  font-size: 1.1rem;
+  font-size: clamp(0.72rem, 2.5vw, 1.1rem);
   font-weight: 600;
   margin: 0;
+  white-space: nowrap;
 }
 
 .combo {
-  font-size: 1.2rem;
+  font-size: clamp(0.8rem, 2.8vw, 1.2rem);
   font-weight: 800;
   margin: 0;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .hint {
   color: #8888aa;
-  font-size: 0.8rem;
+  font-size: clamp(0.6rem, 1.8vw, 0.8rem);
   margin: 0;
+  text-align: center;
 }
 
 .grid-mode-toggle {
@@ -96,6 +108,67 @@ html, body {
   background: #3a7bd5;
   color: #fff;
   border-color: #3a7bd5;
+}
+
+@media (orientation: landscape) {
+  .app {
+    flex-direction: row;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+    align-items: center;
+    gap: 0;
+  }
+
+  .game-header {
+    display: flex;
+    flex-direction: column;
+    width: 100px;
+    flex-shrink: 0;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 12px 10px 12px 4px;
+    height: 100%;
+    box-sizing: border-box;
+    gap: 10px;
+  }
+
+  .swipe-zone {
+    display: block;
+    width: 100px;
+    flex-shrink: 0;
+  }
+
+  .score-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .title {
+    font-size: clamp(1rem, 3vh, 1.6rem);
+  }
+
+  .score,
+  .high-score {
+    font-size: clamp(0.62rem, 1.8vh, 0.95rem);
+  }
+
+  .combo {
+    font-size: clamp(0.7rem, 2vh, 1rem);
+  }
+
+  .hint {
+    font-size: clamp(0.52rem, 1.4vh, 0.7rem);
+    white-space: normal;
+    line-height: 1.4;
+  }
+
+  .arena-container {
+    align-items: center;
+  }
 }
 
 .arena {
@@ -242,50 +315,15 @@ html, body {
   position: relative;
 }
 
-/* ── Normal layout: header children participate directly in .app's flex column */
-.game-header {
-  display: contents;
-}
-
-.swipe-zone {
-  display: none;
-}
-
-/* ── Landscape ────────────────────────────────────────────────────────────── */
-@media (orientation: landscape) {
-  .app {
-    flex-direction: row;
-    align-items: center;
-    gap: 0;
-    padding-top: max(env(safe-area-inset-top), 16px);
-  }
-
+/* ── Portrait: header children participate directly in .app's flex column */
+@media (orientation: portrait) {
   .game-header {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 10px;
-    width: 100px;
-    flex-shrink: 0;
-    align-self: stretch;
+    display: contents;
   }
 
   .swipe-zone {
-    display: block;
-    width: 100px;
-    flex-shrink: 0;
-  }
-
-  .title {
-    font-size: 1.3rem;
-  }
-
-  .score {
-    font-size: 0.9rem;
-  }
-
-  .hint {
-    font-size: 0.7rem;
+    display: none;
   }
 }
+
+
