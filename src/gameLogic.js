@@ -45,13 +45,13 @@ export function createInitialGrid(cfg = DEFAULT_CFG) {
 // Side-panel distribution: heavily favors 1–3, makes 4–7 rare
 // 1: ~40%, 2: ~30%, 3: ~18%, 4: ~7%, 5: ~3%, 6: ~1.5%, 7: ~0.5%
 function randTileSide() {
-  const r = Math.random() * 20;
-  if (r < 8) return 1;
-  if (r < 14) return 2;
-  if (r < 17.6) return 3;
-  if (r < 19) return 4;
-  if (r < 19.6) return 5;
-  if (r < 19.9) return 6;
+  const r = Math.random() * 49;
+  if (r < 10) return 1;
+  if (r < 18) return 2;
+  if (r < 25) return 3;
+  if (r < 30) return 4;
+  if (r < 44) return 5;
+  if (r < 47) return 6;
   return 7;
 }
 
@@ -736,8 +736,9 @@ export function checkGameOver(grid, dl, dr, dt, db, cfg) {
 }
 
 export const MAX_COMBO = 5;
+export const NUKE_COMBO = 6;
 export function nextCombo(combo) {
-  return Math.min(combo + 1, MAX_COMBO);
+  return Math.min(combo + 1, NUKE_COMBO);
 }
 
 // Returns the cells and raw score for the center-cross nuke (center row + center col).

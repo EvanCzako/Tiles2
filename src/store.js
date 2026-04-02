@@ -13,6 +13,7 @@ import {
   checkGameOver,
   nextCombo,
   MAX_COMBO,
+  NUKE_COMBO,
   nukeCrossScore,
 } from './gameLogic';
 import { CELL, GAP, ANIM_MS, FLASH_MS, AUTO_MOVE_MS } from './constants';
@@ -163,13 +164,13 @@ function runCollapseLoop(
 
     const nextCombo_ = nextCombo(combo);
     set({
-      score: get().score + annScore * combo,
-      combo: combo,
+      score: get().score + annScore * Math.min(combo, MAX_COMBO),
+      combo: Math.min(combo, MAX_COMBO),
       annihilateSet: new Set(annihilatedCells.map(([r, c]) => `${r},${c}`)),
     });
     setTimeout(() => {
       set({ grid: annGrid, annihilateSet: new Set() });
-      if (nextCombo_ === MAX_COMBO && !nukeUsed) {
+      if (nextCombo_ === NUKE_COMBO && !nukeUsed) {
         nukeCenterAndSettle(
           annGrid,
           pendingPayload,

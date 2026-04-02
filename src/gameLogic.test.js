@@ -18,6 +18,7 @@ import {
   checkGameOver,
   nextCombo,
   MAX_COMBO,
+  NUKE_COMBO,
   nukeCrossScore,
 } from './gameLogic.js';
 
@@ -1188,11 +1189,11 @@ describe('nukeCrossScore', () => {
     expect(score).toBe(1);
   });
 
-  test('fourth cascade reaches MAX_COMBO — nuke condition', () => {
-    // nextCombo(4) === MAX_COMBO is what triggers nukeCenterAndSettle in store.js
-    expect(nextCombo(4)).toBe(MAX_COMBO);
-    // post-nuke cascades stay capped and don't re-trigger
-    expect(nextCombo(MAX_COMBO)).toBe(MAX_COMBO);
+  test('fifth cascade reaches NUKE_COMBO — nuke condition', () => {
+    // nextCombo(5) === NUKE_COMBO is what triggers nukeCenterAndSettle in store.js
+    expect(nextCombo(5)).toBe(NUKE_COMBO);
+    // post-nuke cascades stay capped at NUKE_COMBO and don't re-trigger
+    expect(nextCombo(NUKE_COMBO)).toBe(NUKE_COMBO);
   });
 });
 
@@ -1202,19 +1203,21 @@ describe('nextCombo', () => {
     expect(nextCombo(1)).toBe(2);
   });
 
-  test('increments correctly: 2 → 3 → 4 → 5', () => {
+  test('increments correctly: 2 → 3 → 4 → 5 → 6', () => {
     expect(nextCombo(2)).toBe(3);
     expect(nextCombo(3)).toBe(4);
     expect(nextCombo(4)).toBe(5);
+    expect(nextCombo(5)).toBe(6);
   });
 
-  test('caps at MAX_COMBO (5)', () => {
-    expect(nextCombo(5)).toBe(5);
-    expect(nextCombo(10)).toBe(5); // defensive
+  test('caps at NUKE_COMBO (6)', () => {
+    expect(nextCombo(6)).toBe(6);
+    expect(nextCombo(10)).toBe(6); // defensive
   });
 
-  test('MAX_COMBO is 5', () => {
+  test('MAX_COMBO is 5, NUKE_COMBO is 6', () => {
     expect(MAX_COMBO).toBe(5);
+    expect(NUKE_COMBO).toBe(6);
   });
 
   test('cascading three waves: 1x → 2x → 3x', () => {
