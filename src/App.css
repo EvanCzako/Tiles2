@@ -306,19 +306,30 @@ body {
 
 @keyframes flash-annihilate {
   0% {
-    filter: brightness(1);
     opacity: 1;
   }
   20% {
-    filter: brightness(3) saturate(0);
     opacity: 1;
   }
   60% {
-    filter: brightness(2) saturate(0);
     opacity: 0.7;
   }
   100% {
-    filter: brightness(3) saturate(0);
+    opacity: 0;
+  }
+}
+
+@keyframes flash-annihilate-overlay {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.8;
+  }
+  100% {
     opacity: 0;
   }
 }
@@ -327,6 +338,16 @@ body {
   animation: flash-annihilate 320ms ease-in forwards;
   z-index: 10;
   position: relative;
+}
+
+.tile--flash-annihilate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: white;
+  animation: flash-annihilate-overlay 320ms ease-in forwards;
+  pointer-events: none;
 }
 
 @keyframes flash-blocked {
