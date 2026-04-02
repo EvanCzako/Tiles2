@@ -7,6 +7,9 @@
 		"dev": "vite",
 		"build": "vite build",
 		"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+		"lint": "eslint src",
+		"lint:fix": "eslint src --fix",
+		"format": "prettier --write src",
 		"predeploy": "npm run build",
 		"deploy": "gh-pages -d dist"
 	},
@@ -20,9 +23,16 @@
 		"zustand": "^5.0.12"
 	},
 	"devDependencies": {
+		"@eslint/js": "^10.0.1",
 		"@vitejs/plugin-react": "^4.3.1",
+		"eslint": "^10.1.0",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-react": "^7.37.5",
+		"eslint-plugin-react-hooks": "^7.0.1",
 		"gh-pages": "^6.3.0",
+		"globals": "^17.4.0",
 		"jest": "^30.3.0",
+		"prettier": "^3.8.1",
 		"vite": "^6.0.0"
 	}
 }

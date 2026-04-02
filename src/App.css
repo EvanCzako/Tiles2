@@ -1,9 +1,9 @@
-html, body {
+html,
+body {
   overscroll-behavior: none;
   overflow: hidden;
   width: 100%;
 }
-
 
 .app {
   display: flex;
@@ -96,7 +96,10 @@ html, body {
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .mode-btn:hover {
@@ -226,10 +229,22 @@ html, body {
 }
 
 @keyframes flash-collapse {
-  0%   { transform: scale(1);    filter: brightness(1); }
-  30%  { transform: scale(1.25); filter: brightness(2.5); }
-  60%  { transform: scale(0.85); filter: brightness(1.5); }
-  100% { transform: scale(1);    filter: brightness(1); }
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  30% {
+    transform: scale(1.25);
+    filter: brightness(2.5);
+  }
+  60% {
+    transform: scale(0.85);
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
 }
 
 .tile--flash {
@@ -290,10 +305,22 @@ html, body {
 }
 
 @keyframes flash-annihilate {
-  0%   { filter: brightness(1);   opacity: 1; }
-  20%  { filter: brightness(3) saturate(0); opacity: 1; }
-  60%  { filter: brightness(2) saturate(0); opacity: 0.7; }
-  100% { filter: brightness(3) saturate(0); opacity: 0; }
+  0% {
+    filter: brightness(1);
+    opacity: 1;
+  }
+  20% {
+    filter: brightness(3) saturate(0);
+    opacity: 1;
+  }
+  60% {
+    filter: brightness(2) saturate(0);
+    opacity: 0.7;
+  }
+  100% {
+    filter: brightness(3) saturate(0);
+    opacity: 0;
+  }
 }
 
 .tile--flash-annihilate {
@@ -303,10 +330,18 @@ html, body {
 }
 
 @keyframes flash-blocked {
-  0%   { filter: brightness(1); }
-  25%  { filter: sepia(1) saturate(10) hue-rotate(310deg) brightness(1.5); }
-  65%  { filter: sepia(1) saturate(6)  hue-rotate(310deg) brightness(1.2); }
-  100% { filter: brightness(1); }
+  0% {
+    filter: brightness(1);
+  }
+  25% {
+    filter: sepia(1) saturate(10) hue-rotate(310deg) brightness(1.5);
+  }
+  65% {
+    filter: sepia(1) saturate(6) hue-rotate(310deg) brightness(1.2);
+  }
+  100% {
+    filter: brightness(1);
+  }
 }
 
 .tile--flash-red {
@@ -325,5 +360,3 @@ html, body {
     display: none;
   }
 }
-
-

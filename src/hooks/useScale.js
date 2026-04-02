@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { HEADER_H, LANDSCAPE_PANEL_W } from '../constants';
 
 export function computeScale(containerW, containerH) {
-  const vw = window.visualViewport?.width  ?? document.documentElement.clientWidth;
+  const vw = window.visualViewport?.width ?? document.documentElement.clientWidth;
   const vh = window.visualViewport?.height ?? document.documentElement.clientHeight;
   const landscape = vw > vh;
   const availW = vw - 32 - (landscape ? LANDSCAPE_PANEL_W * 2 : 0);
@@ -17,6 +17,7 @@ export function useScale(containerW, containerH) {
 
   // Use a ref to avoid stale closures in the resize observer callback
   const dimsRef = useRef({ containerW, containerH });
+  // eslint-disable-next-line react-hooks/refs -- intentional: always-current ref pattern
   dimsRef.current = { containerW, containerH };
 
   // Recalculate when grid dimensions change (e.g. mode switch)
@@ -33,7 +34,10 @@ export function useScale(containerW, containerH) {
       const { containerW: cW, containerH: cH } = dimsRef.current;
       setScale(computeScale(cW, cH));
     };
-    const defer = () => { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(update); };
+    const defer = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(update);
+    };
 
     let orientationTimer = null;
     const onOrientation = () => {

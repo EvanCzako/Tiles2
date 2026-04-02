@@ -1,10 +1,10 @@
 // ── Fixed layout constants ───────────────────────────────────────────────────
 export const CELL = 52;
-export const GAP  = 4;
+export const GAP = 4;
 
 // ── Animation timings ────────────────────────────────────────────────────────
-export const ANIM_MS      = 220;
-export const FLASH_MS     = 320;
+export const ANIM_MS = 220;
+export const FLASH_MS = 320;
 export const AUTO_MOVE_MS = 500;
 
 // ── App-level layout constants ───────────────────────────────────────────────

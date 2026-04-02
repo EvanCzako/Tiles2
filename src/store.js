@@ -1,19 +1,36 @@
 import { create } from 'zustand';
 import {
   GRID_CONFIGS,
-  createInitialGrid, createInitialPending,
-  pushFromLeft, pushFromRight, pushFromTop, pushFromBottom, collapseGrid, annihilateAdjacent,
-  sideCanLand, checkGameOver, nextCombo,
+  createInitialGrid,
+  createInitialPending,
+  pushFromLeft,
+  pushFromRight,
+  pushFromTop,
+  pushFromBottom,
+  collapseGrid,
+  annihilateAdjacent,
+  sideCanLand,
+  checkGameOver,
+  nextCombo,
+  MAX_COMBO,
+  nukeCrossScore,
 } from './gameLogic';
 import { CELL, GAP, ANIM_MS, FLASH_MS, AUTO_MOVE_MS } from './constants';
-import { getLayout, cellPos, leftPendingPos, rightPendingPos, topPendingPos, bottomPendingPos } from './layout';
+import {
+  getLayout,
+  cellPos,
+  leftPendingPos,
+  rightPendingPos,
+  topPendingPos,
+  bottomPendingPos,
+} from './layout';
 
 function getAvailableDirections(s) {
   const { grid, disabledLeft, disabledRight, disabledTop, disabledBottom, cfg } = s;
   const dirs = [];
-  if (sideCanLand(grid, disabledLeft,   cfg, 'row')) dirs.push('right');
-  if (sideCanLand(grid, disabledRight,  cfg, 'row')) dirs.push('left');
-  if (sideCanLand(grid, disabledTop,    cfg, 'col')) dirs.push('down');
+  if (sideCanLand(grid, disabledLeft, cfg, 'row')) dirs.push('right');
+  if (sideCanLand(grid, disabledRight, cfg, 'row')) dirs.push('left');
+  if (sideCanLand(grid, disabledTop, cfg, 'col')) dirs.push('down');
   if (sideCanLand(grid, disabledBottom, cfg, 'col')) dirs.push('up');
   return dirs;
 }
@@ -31,80 +48,116 @@ function saveHighScore(score) {
 }
 
 function initState(mode = '9x9') {
-  const cfg    = GRID_CONFIGS[mode];
+  const cfg = GRID_CONFIGS[mode];
   const layout = getLayout(cfg);
   return {
-    gridMode:       mode,
+    gridMode: mode,
     cfg,
     layout,
-    grid:           createInitialGrid(cfg),
-    leftPending:    createInitialPending(cfg),
-    rightPending:   createInitialPending(cfg),
-    topPending:     createInitialPending(cfg),
-    bottomPending:  createInitialPending(cfg),
-    score:          0,
-    highScore:      loadHighScore(),
-    combo:          1,
-    gameOver:       false,
-    animating:      false,
-    flyingTiles:    [],
-    flyingSource:   null,
-    flashSet:       new Set(),
-    annihilateSet:  new Set(),
-    redFlashSet:    new Set(),
+    grid: createInitialGrid(cfg),
+    leftPending: createInitialPending(cfg),
+    rightPending: createInitialPending(cfg),
+    topPending: createInitialPending(cfg),
+    bottomPending: createInitialPending(cfg),
+    score: 0,
+    highScore: loadHighScore(),
+    combo: 1,
+    gameOver: false,
+    animating: false,
+    flyingTiles: [],
+    flyingSource: null,
+    annihilateSet: new Set(),
+    redFlashSet: new Set(),
     redFlashSource: null,
     collapsingCells: new Set(),
-    disabledLeft:   new Set(),
-    disabledRight:  new Set(),
-    disabledTop:    new Set(),
+    disabledLeft: new Set(),
+    disabledRight: new Set(),
+    disabledTop: new Set(),
     disabledBottom: new Set(),
-    pendingCommit:  null,
-    frozenPendingRows: null,  // snapshot of per-row activity at push time; held through cascade
-    lastVerticalSide:   'top',   // last side pushed on vertical axis: 'top' or 'bottom'
-    lastHorizontalSide: 'left',  // last side pushed on horizontal axis: 'left' or 'right'
+    pendingCommit: null,
+    frozenPendingRows: null, // snapshot of per-row activity at push time; held through cascade
+    lastVerticalSide: 'top', // last side pushed on vertical axis: 'top' or 'bottom'
+    lastHorizontalSide: 'left', // last side pushed on horizontal axis: 'left' or 'right'
   };
 }
 
 function buildFrozenSnapshot(grid, cfg) {
   const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
-  const gridEmpty = grid.every(row => row.every(v => v === 0));
+  const gridEmpty = grid.every((row) => row.every((v) => v === 0));
   const centerRowIdx = CENTER_ROW - PENDING_ROW_START;
   const centerColIdx = CENTER_COL - PENDING_COL_START;
-  const rowActive = i => grid[PENDING_ROW_START + i].some(v => v !== 0) || (gridEmpty && i === centerRowIdx);
-  const colActive = i => grid.some(row => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
+  const rowActive = (i) =>
+    grid[PENDING_ROW_START + i].some((v) => v !== 0) || (gridEmpty && i === centerRowIdx);
+  const colActive = (i) =>
+    grid.some((row) => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
   return {
-    left:   Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
-    right:  Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
-    top:    Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
+    left: Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
+    right: Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
+    top: Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
     bottom: Array.from({ length: PENDING_SIZE }, (_, i) => colActive(i)),
   };
 }
 
+// ── End-of-turn helper ─────────────────────────────────────────────────────
+// Transition is atomic (never passes through null) to avoid Arena re-deriving
+// visibility from a mismatched grid mid-render.
+function endTurn(grid, pendingPayload, newDL, newDR, newDT, newDB, get, set) {
+  const curCfg = get().cfg;
+  set({
+    animating: false,
+    combo: 1,
+    frozenPendingRows: buildFrozenSnapshot(grid, curCfg),
+    ...pendingPayload,
+  });
+  if (checkGameOver(grid, newDL, newDR, newDT, newDB, curCfg)) {
+    const currentScore = get().score;
+    const currentHighScore = get().highScore;
+    const newHighScore = Math.max(currentScore, currentHighScore);
+    saveHighScore(newHighScore);
+    set({ gameOver: true, highScore: newHighScore });
+  } else {
+    const available = getAvailableDirections(get());
+    if (available.length === 1) {
+      setTimeout(() => {
+        if (!get().gameOver && !get().animating) get().triggerPush(available[0]);
+      }, AUTO_MOVE_MS);
+    }
+  }
+}
+
 // ── Collapse + annihilate loop ─────────────────────────────────────────────
-function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastVerticalSide = 'top', lastHorizontalSide = 'left', combo = 1) {
+function runCollapseLoop(
+  grid,
+  pendingPayload,
+  newDL,
+  newDR,
+  newDT,
+  newDB,
+  get,
+  set,
+  lastVerticalSide = 'top',
+  lastHorizontalSide = 'left',
+  combo = 1,
+  nukeUsed = false
+) {
   const { cfg } = get();
-  const { grid: collapsedGrid, midGrid, gravityMoves, horizontalMoves } = collapseGrid(grid, cfg, lastVerticalSide, lastHorizontalSide);
+  const {
+    grid: collapsedGrid,
+    midGrid,
+    gravityMoves,
+    horizontalMoves,
+  } = collapseGrid(grid, cfg, lastVerticalSide, lastHorizontalSide);
 
   const afterCollapse = (settled) => {
     const curCfg = get().cfg;
-    const { annihilatedCells, grid: annGrid, score: annScore } = annihilateAdjacent(settled, curCfg);
+    const {
+      annihilatedCells,
+      grid: annGrid,
+      score: annScore,
+    } = annihilateAdjacent(settled, curCfg);
 
     if (annihilatedCells.length === 0) {
-      // Cascade fully settled — transition is atomic (never passes through null)
-      // to avoid Arena re-deriving visibility from a mismatched grid mid-render.
-      set({ animating: false, combo: 1, frozenPendingRows: buildFrozenSnapshot(settled, curCfg), ...pendingPayload });
-      if (checkGameOver(settled, newDL, newDR, newDT, newDB, curCfg)) {
-        const currentScore = get().score;
-        const currentHighScore = get().highScore;
-        const newHighScore = Math.max(currentScore, currentHighScore);
-        saveHighScore(newHighScore);
-        set({ gameOver: true, highScore: newHighScore });
-      } else {
-        const available = getAvailableDirections(get());
-        if (available.length === 1) {
-          setTimeout(() => { if (!get().gameOver && !get().animating) get().triggerPush(available[0]); }, AUTO_MOVE_MS);
-        }
-      }
+      endTurn(settled, pendingPayload, newDL, newDR, newDT, newDB, get, set);
       return;
     }
 
@@ -116,7 +169,35 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
     });
     setTimeout(() => {
       set({ grid: annGrid, annihilateSet: new Set() });
-      runCollapseLoop(annGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, lastVerticalSide, lastHorizontalSide, nextCombo_);
+      if (nextCombo_ === MAX_COMBO && !nukeUsed) {
+        nukeCenterAndSettle(
+          annGrid,
+          pendingPayload,
+          newDL,
+          newDR,
+          newDT,
+          newDB,
+          get,
+          set,
+          lastVerticalSide,
+          lastHorizontalSide
+        );
+      } else {
+        runCollapseLoop(
+          annGrid,
+          pendingPayload,
+          newDL,
+          newDR,
+          newDT,
+          newDB,
+          get,
+          set,
+          lastVerticalSide,
+          lastHorizontalSide,
+          nextCombo_,
+          nukeUsed
+        );
+      }
     }, FLASH_MS);
   };
 
@@ -127,22 +208,24 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
       return;
     }
     const curLayout = get().layout;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      set({
-        flyingTiles: horizontalMoves.map((m, idx) => ({
-          id: `collapse-h-${idx}`,
-          value: m.value,
-          from: cellPos(m.fromRow, m.fromCol, curLayout),
-          to:   cellPos(m.toRow,   m.toCol,   curLayout),
-          flyThrough: false,
-        })),
-        collapsingCells: new Set(horizontalMoves.map(m => `${m.fromRow},${m.fromCol}`)),
-      });
-      setTimeout(() => {
-        set({ grid: collapsedGrid, flyingTiles: [], collapsingCells: new Set() });
-        afterCollapse(collapsedGrid);
-      }, ANIM_MS + 30);
-    }));
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        set({
+          flyingTiles: horizontalMoves.map((m, idx) => ({
+            id: `collapse-h-${idx}`,
+            value: m.value,
+            from: cellPos(m.fromRow, m.fromCol, curLayout),
+            to: cellPos(m.toRow, m.toCol, curLayout),
+            flyThrough: false,
+          })),
+          collapsingCells: new Set(horizontalMoves.map((m) => `${m.fromRow},${m.fromCol}`)),
+        });
+        setTimeout(() => {
+          set({ grid: collapsedGrid, flyingTiles: [], collapsingCells: new Set() });
+          afterCollapse(collapsedGrid);
+        }, ANIM_MS + 30);
+      })
+    );
   };
 
   if (gravityMoves.length === 0 && horizontalMoves.length === 0) {
@@ -158,22 +241,80 @@ function runCollapseLoop(grid, pendingPayload, newDL, newDR, newDT, newDB, get, 
 
   // Animate gravity (downward) first, then horizontal
   const curLayout = get().layout;
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    set({
-      flyingTiles: gravityMoves.map((m, idx) => ({
-        id: `collapse-g-${idx}`,
-        value: m.value,
-        from: cellPos(m.fromRow, m.fromCol, curLayout),
-        to:   cellPos(m.toRow,   m.toCol,   curLayout),
-        flyThrough: false,
-      })),
-      collapsingCells: new Set(gravityMoves.map(m => `${m.fromRow},${m.fromCol}`)),
-    });
-    setTimeout(() => {
-      set({ grid: midGrid, flyingTiles: [], collapsingCells: new Set() });
-      doHorizontalPhase();
-    }, ANIM_MS + 30);
-  }));
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      set({
+        flyingTiles: gravityMoves.map((m, idx) => ({
+          id: `collapse-g-${idx}`,
+          value: m.value,
+          from: cellPos(m.fromRow, m.fromCol, curLayout),
+          to: cellPos(m.toRow, m.toCol, curLayout),
+          flyThrough: false,
+        })),
+        collapsingCells: new Set(gravityMoves.map((m) => `${m.fromRow},${m.fromCol}`)),
+      });
+      setTimeout(() => {
+        set({ grid: midGrid, flyingTiles: [], collapsingCells: new Set() });
+        doHorizontalPhase();
+      }, ANIM_MS + 30);
+    })
+  );
+}
+
+// ── Center nuke triggered on reaching 5x multiplier ────────────────────────
+function nukeCenterAndSettle(
+  grid,
+  pendingPayload,
+  newDL,
+  newDR,
+  newDT,
+  newDB,
+  get,
+  set,
+  lastVerticalSide,
+  lastHorizontalSide
+) {
+  const { cfg } = get();
+  const { ROWS, COLS, CENTER_ROW, CENTER_COL } = cfg;
+
+  // All cross cells flash; nukeCrossScore gives the non-empty subset for score/clear
+  const flashCells = new Set();
+  for (let c = 0; c < COLS; c++) flashCells.add(`${CENTER_ROW},${c}`);
+  for (let r = 0; r < ROWS; r++) {
+    if (r !== CENTER_ROW) flashCells.add(`${r},${CENTER_COL}`);
+  }
+
+  const { cells: clearCells, score: centerScore } = nukeCrossScore(grid, cfg);
+
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      set({
+        score: get().score + centerScore * MAX_COMBO,
+        combo: MAX_COMBO,
+        annihilateSet: flashCells,
+      });
+
+      setTimeout(() => {
+        const nukedGrid = grid.map((row) => [...row]);
+        for (const [r, c] of clearCells) nukedGrid[r][c] = 0;
+        set({ grid: nukedGrid, annihilateSet: new Set() });
+        runCollapseLoop(
+          nukedGrid,
+          pendingPayload,
+          newDL,
+          newDR,
+          newDT,
+          newDB,
+          get,
+          set,
+          lastVerticalSide,
+          lastHorizontalSide,
+          MAX_COMBO,
+          true
+        );
+      }, FLASH_MS);
+    })
+  );
 }
 
 // ── Store ───────────────────────────────────────────────────────────────────
@@ -201,33 +342,51 @@ const useGameStore = create((set, get) => ({
     const { cfg, layout } = s;
     let pushFn, pendingArg, pendingKey, getPendingPos;
     if (direction === 'left') {
-      pushFn = pushFromRight; pendingArg = s.rightPending;
-      pendingKey = 'rightPending'; getPendingPos = i => rightPendingPos(i, layout);
+      pushFn = pushFromRight;
+      pendingArg = s.rightPending;
+      pendingKey = 'rightPending';
+      getPendingPos = (i) => rightPendingPos(i, layout);
     } else if (direction === 'right') {
-      pushFn = pushFromLeft;  pendingArg = s.leftPending;
-      pendingKey = 'leftPending';  getPendingPos = i => leftPendingPos(i, layout);
+      pushFn = pushFromLeft;
+      pendingArg = s.leftPending;
+      pendingKey = 'leftPending';
+      getPendingPos = (i) => leftPendingPos(i, layout);
     } else if (direction === 'down') {
-      pushFn = pushFromTop;    pendingArg = s.topPending;
-      pendingKey = 'topPending';    getPendingPos = i => topPendingPos(i, layout);
+      pushFn = pushFromTop;
+      pendingArg = s.topPending;
+      pendingKey = 'topPending';
+      getPendingPos = (i) => topPendingPos(i, layout);
     } else if (direction === 'up') {
-      pushFn = pushFromBottom; pendingArg = s.bottomPending;
-      pendingKey = 'bottomPending'; getPendingPos = i => bottomPendingPos(i, layout);
+      pushFn = pushFromBottom;
+      pendingArg = s.bottomPending;
+      pendingKey = 'bottomPending';
+      getPendingPos = (i) => bottomPendingPos(i, layout);
     } else return;
 
     // Track each axis independently so left/right pushes don't bias the vertical
     // center, and top/bottom pushes don't bias the horizontal center.
-    const newVerticalSide   = pendingKey === 'topPending'    ? 'top'
-                            : pendingKey === 'bottomPending' ? 'bottom'
-                            : s.lastVerticalSide;
-    const newHorizontalSide = pendingKey === 'leftPending'   ? 'left'
-                            : pendingKey === 'rightPending'  ? 'right'
-                            : s.lastHorizontalSide;
+    const newVerticalSide =
+      pendingKey === 'topPending'
+        ? 'top'
+        : pendingKey === 'bottomPending'
+          ? 'bottom'
+          : s.lastVerticalSide;
+    const newHorizontalSide =
+      pendingKey === 'leftPending'
+        ? 'left'
+        : pendingKey === 'rightPending'
+          ? 'right'
+          : s.lastHorizontalSide;
 
-    const disabled = pendingKey === 'leftPending'   ? s.disabledLeft
-                   : pendingKey === 'rightPending'  ? s.disabledRight
-                   : pendingKey === 'topPending'    ? s.disabledTop
-                   : s.disabledBottom;
-    const filteredPending = pendingArg.map((v, i) => disabled.has(i) ? 0 : v);
+    const disabled =
+      pendingKey === 'leftPending'
+        ? s.disabledLeft
+        : pendingKey === 'rightPending'
+          ? s.disabledRight
+          : pendingKey === 'topPending'
+            ? s.disabledTop
+            : s.disabledBottom;
+    const filteredPending = pendingArg.map((v, i) => (disabled.has(i) ? 0 : v));
     const result = pushFn(s.grid, filteredPending, cfg);
     const { landings, blockedIndices } = result;
 
@@ -235,31 +394,32 @@ const useGameStore = create((set, get) => ({
     // pre-swipe height for the entire cascade.
     const frozenPendingRows = buildFrozenSnapshot(s.grid, cfg);
     // Fully refreshed values (result.pending) are applied only when cascade settles.
-    const intermediatePending = pendingArg.map((v, i) => blockedIndices.includes(i) ? v : 0);
+    const intermediatePending = pendingArg.map((v, i) => (blockedIndices.includes(i) ? v : 0));
 
     const pc = {
-      payload:       { grid: result.grid, [pendingKey]: result.pending },
+      payload: { grid: result.grid, [pendingKey]: result.pending },
       blockedIndices,
       pendingKey,
     };
 
-    const rowIsVisible = idx => {
+    const rowIsVisible = (idx) => {
       if (pendingKey === 'topPending' || pendingKey === 'bottomPending')
-        return s.grid.some(row => row[cfg.PENDING_COL_START + idx] !== 0);
-      return s.grid[cfg.PENDING_ROW_START + idx].some(v => v !== 0);
+        return s.grid.some((row) => row[cfg.PENDING_COL_START + idx] !== 0);
+      return s.grid[cfg.PENDING_ROW_START + idx].some((v) => v !== 0);
     };
 
     const flying = landings
-      .filter(land => !land.flyThrough || rowIsVisible(land.pendingIdx))
+      .filter((land) => !land.flyThrough || rowIsVisible(land.pendingIdx))
       .map((land, idx) => {
         const from = getPendingPos(land.pendingIdx);
         let to, flyThrough;
         if (land.flyThrough) {
           flyThrough = true;
-          if (pendingKey === 'leftPending')       to = { x: layout.sideOffset + layout.gridPx + GAP * 4 + CELL, y: from.y };
-          else if (pendingKey === 'rightPending') to = { x: -CELL * 2,                                            y: from.y };
-          else if (pendingKey === 'topPending')   to = { x: from.x, y: layout.CONTAINER_H + CELL };
-          else                                    to = { x: from.x, y: -CELL };
+          if (pendingKey === 'leftPending')
+            to = { x: layout.sideOffset + layout.gridPx + GAP * 4 + CELL, y: from.y };
+          else if (pendingKey === 'rightPending') to = { x: -CELL * 2, y: from.y };
+          else if (pendingKey === 'topPending') to = { x: from.x, y: layout.CONTAINER_H + CELL };
+          else to = { x: from.x, y: -CELL };
         } else {
           flyThrough = false;
           to = cellPos(land.row, land.col, layout);
@@ -269,20 +429,32 @@ const useGameStore = create((set, get) => ({
 
     // ── No animation: commit immediately ────────────────────────────────────
     if (flying.length === 0) {
-      const newDL = pendingKey === 'leftPending'   ? new Set([...s.disabledLeft,   ...blockedIndices]) : s.disabledLeft;
-      const newDR = pendingKey === 'rightPending'  ? new Set([...s.disabledRight,  ...blockedIndices]) : s.disabledRight;
-      const newDT = pendingKey === 'topPending'    ? new Set([...s.disabledTop,    ...blockedIndices]) : s.disabledTop;
-      const newDB = pendingKey === 'bottomPending' ? new Set([...s.disabledBottom, ...blockedIndices]) : s.disabledBottom;
+      const newDL =
+        pendingKey === 'leftPending'
+          ? new Set([...s.disabledLeft, ...blockedIndices])
+          : s.disabledLeft;
+      const newDR =
+        pendingKey === 'rightPending'
+          ? new Set([...s.disabledRight, ...blockedIndices])
+          : s.disabledRight;
+      const newDT =
+        pendingKey === 'topPending'
+          ? new Set([...s.disabledTop, ...blockedIndices])
+          : s.disabledTop;
+      const newDB =
+        pendingKey === 'bottomPending'
+          ? new Set([...s.disabledBottom, ...blockedIndices])
+          : s.disabledBottom;
 
       set({
         ...pc.payload,
-        disabledLeft:       newDL,
-        disabledRight:      newDR,
-        disabledTop:        newDT,
-        disabledBottom:     newDB,
-        lastVerticalSide:   newVerticalSide,
+        disabledLeft: newDL,
+        disabledRight: newDR,
+        disabledTop: newDT,
+        disabledBottom: newDB,
+        lastVerticalSide: newVerticalSide,
         lastHorizontalSide: newHorizontalSide,
-        redFlashSet:    blockedIndices.length > 0 ? new Set(blockedIndices) : new Set(),
+        redFlashSet: blockedIndices.length > 0 ? new Set(blockedIndices) : new Set(),
         redFlashSource: blockedIndices.length > 0 ? pendingKey : null,
       });
       if (blockedIndices.length > 0)
@@ -296,7 +468,9 @@ const useGameStore = create((set, get) => ({
       } else {
         const available = getAvailableDirections(get());
         if (available.length === 1) {
-          setTimeout(() => { if (!get().gameOver && !get().animating) get().triggerPush(available[0]); }, AUTO_MOVE_MS);
+          setTimeout(() => {
+            if (!get().gameOver && !get().animating) get().triggerPush(available[0]);
+          }, AUTO_MOVE_MS);
         }
       }
       return;
@@ -304,12 +478,12 @@ const useGameStore = create((set, get) => ({
 
     // ── Animate ──────────────────────────────────────────────────────────────
     set({
-      pendingCommit:  pc,
-      flyingTiles:    flying,
-      flyingSource:   pendingKey.replace('Pending', ''),
-      animating:      true,
+      pendingCommit: pc,
+      flyingTiles: flying,
+      flyingSource: pendingKey.replace('Pending', ''),
+      animating: true,
       frozenPendingRows,
-      redFlashSet:    blockedIndices.length > 0 ? new Set(blockedIndices) : new Set(),
+      redFlashSet: blockedIndices.length > 0 ? new Set(blockedIndices) : new Set(),
       redFlashSource: blockedIndices.length > 0 ? pendingKey : null,
     });
 
@@ -318,27 +492,49 @@ const useGameStore = create((set, get) => ({
       const { pendingCommit: commit } = cur;
       const { payload, blockedIndices: blocked, pendingKey: pKey } = commit;
 
-      const newDL = pKey === 'leftPending'   ? new Set([...cur.disabledLeft,   ...blocked]) : cur.disabledLeft;
-      const newDR = pKey === 'rightPending'  ? new Set([...cur.disabledRight,  ...blocked]) : cur.disabledRight;
-      const newDT = pKey === 'topPending'    ? new Set([...cur.disabledTop,    ...blocked]) : cur.disabledTop;
-      const newDB = pKey === 'bottomPending' ? new Set([...cur.disabledBottom, ...blocked]) : cur.disabledBottom;
+      const newDL =
+        pKey === 'leftPending' ? new Set([...cur.disabledLeft, ...blocked]) : cur.disabledLeft;
+      const newDR =
+        pKey === 'rightPending' ? new Set([...cur.disabledRight, ...blocked]) : cur.disabledRight;
+      const newDT =
+        pKey === 'topPending' ? new Set([...cur.disabledTop, ...blocked]) : cur.disabledTop;
+      const newDB =
+        pKey === 'bottomPending'
+          ? new Set([...cur.disabledBottom, ...blocked])
+          : cur.disabledBottom;
 
       set({
-        flyingTiles:    [],
-        flyingSource:   null,
-        redFlashSet:    new Set(),
+        flyingTiles: [],
+        flyingSource: null,
+        redFlashSet: new Set(),
         redFlashSource: null,
-        disabledLeft:   newDL,
-        disabledRight:  newDR,
-        disabledTop:    newDT,
+        disabledLeft: newDL,
+        disabledRight: newDR,
+        disabledTop: newDT,
         disabledBottom: newDB,
-        pendingCommit:  null,
+        pendingCommit: null,
       });
 
       // Commit the grid + intermediate pending (used slots zeroed); hold refreshed pending for cascade end
       const { grid: payloadGrid, ...pendingPayload } = payload;
-      set({ grid: payloadGrid, [pendingKey]: intermediatePending, lastVerticalSide: newVerticalSide, lastHorizontalSide: newHorizontalSide });
-      runCollapseLoop(payloadGrid, pendingPayload, newDL, newDR, newDT, newDB, get, set, newVerticalSide, newHorizontalSide);
+      set({
+        grid: payloadGrid,
+        [pendingKey]: intermediatePending,
+        lastVerticalSide: newVerticalSide,
+        lastHorizontalSide: newHorizontalSide,
+      });
+      runCollapseLoop(
+        payloadGrid,
+        pendingPayload,
+        newDL,
+        newDR,
+        newDT,
+        newDB,
+        get,
+        set,
+        newVerticalSide,
+        newHorizontalSide
+      );
     }, ANIM_MS + 30);
   },
 }));
