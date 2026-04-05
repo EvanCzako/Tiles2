@@ -47,11 +47,11 @@ export function createInitialGrid(cfg = DEFAULT_CFG) {
 function randTileSide() {
   const r = Math.random() * 49;
   if (r < 10) return 1;
-  if (r < 18) return 2;
-  if (r < 25) return 3;
-  if (r < 30) return 4;
-  if (r < 44) return 5;
-  if (r < 47) return 6;
+  if (r < 19) return 2;
+  if (r < 27) return 3;
+  if (r < 34) return 4;
+  if (r < 40) return 5;
+  if (r < 45) return 6;
   return 7;
 }
 
