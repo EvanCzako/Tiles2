@@ -709,29 +709,19 @@ export function annihilateAdjacent(grid, cfg = DEFAULT_CFG) {
   return { grid: newGrid, annihilatedCells: toAnnihilate, score };
 }
 
-// Returns true if a given side can land at least one tile on the board.
-// axis='row' for left/right sides (indexed by row); axis='col' for top/bottom (indexed by col).
-// A slot can land if it isn't disabled AND (its row/col has live tiles OR it's the center slot).
-export function sideCanLand(grid, disabled, cfg, axis) {
-  const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
-  const centerIdx =
-    axis === 'row' ? CENTER_ROW - PENDING_ROW_START : CENTER_COL - PENDING_COL_START;
-  const isActive =
-    axis === 'row'
-      ? (i) => grid[PENDING_ROW_START + i].some((v) => v !== 0)
-      : (i) => grid.some((row) => row[PENDING_COL_START + i] !== 0);
-  for (let i = 0; i < PENDING_SIZE; i++) {
-    if (!disabled.has(i) && (isActive(i) || i === centerIdx)) return true;
-  }
-  return false;
+// Returns true if pushing from this side would land at least one tile (non-flythrough).
+function sideHasLanding(grid, cfg, pushFn) {
+  const dummy = Array(cfg.PENDING_SIZE).fill(1);
+  const result = pushFn(grid, dummy, cfg);
+  return result.landings.some((l) => !l.flyThrough);
 }
 
-export function checkGameOver(grid, dl, dr, dt, db, cfg) {
+export function checkGameOver(grid, cfg) {
   return (
-    !sideCanLand(grid, dl, cfg, 'row') &&
-    !sideCanLand(grid, dr, cfg, 'row') &&
-    !sideCanLand(grid, dt, cfg, 'col') &&
-    !sideCanLand(grid, db, cfg, 'col')
+    !sideHasLanding(grid, cfg, pushFromLeft) &&
+    !sideHasLanding(grid, cfg, pushFromRight) &&
+    !sideHasLanding(grid, cfg, pushFromTop) &&
+    !sideHasLanding(grid, cfg, pushFromBottom)
   );
 }
 
@@ -764,7 +754,7 @@ export function nukeCrossScore(grid, cfg = DEFAULT_CFG) {
 
 export function getTileColor(value) {
   const colors = {
-    0: { bg: '#1e1e38', text: 'transparent' },
+    0: { bg: '#272744', text: 'transparent' },
     1: { bg: '#4488ee', text: '#fff' }, // blue
     2: { bg: '#22bbaa', text: '#fff' }, // teal
     3: { bg: '#44cc66', text: '#fff' }, // green

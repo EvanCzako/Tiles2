@@ -17,18 +17,16 @@ export default function Arena() {
     reset,
     flyingTiles,
     flyingSource,
-    redFlashSet,
-    redFlashSource,
     annihilateSet,
     collapsingCells,
-    disabledLeft,
-    disabledRight,
-    disabledTop,
-    disabledBottom,
     frozenPendingRows,
+    pendingCommit,
     cfg,
     layout,
   } = useGameStore();
+
+  const blockedKey = pendingCommit?.pendingKey ?? null;
+  const blockedSet = pendingCommit ? new Set(pendingCommit.blockedIndices) : new Set();
 
   const { sideOffset, gridPx, gridTopOffset, pendingColTop, topPendingLeft, bottomPendingY } =
     layout;
@@ -60,12 +58,9 @@ export default function Arena() {
             ? frozenPendingRows.top[i]
             : grid.some((row) => row[PENDING_COL_START + i] !== 0) ||
               (gridEmpty && i === centerPendingColIdx);
-          const isDisabled = disabledTop.has(i);
-          const isBlocked = redFlashSource === 'topPending' && redFlashSet.has(i);
-          const showVal = colActive && !(flyingSource === 'top' && !isBlocked && !isDisabled);
-          return (
-            <Tile key={i} value={showVal ? val : 0} flashRed={isBlocked} disabled={isDisabled} />
-          );
+          const isBlocked = blockedKey === 'topPending' && blockedSet.has(i);
+          const showVal = colActive && !(flyingSource === 'top' && !isBlocked);
+          return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
 
@@ -76,12 +71,9 @@ export default function Arena() {
             ? frozenPendingRows.left[i]
             : grid[PENDING_ROW_START + i].some((v) => v !== 0) ||
               (gridEmpty && i === centerPendingRowIdx);
-          const isDisabled = disabledLeft.has(i);
-          const isBlocked = redFlashSource === 'leftPending' && redFlashSet.has(i);
-          const showVal = rowActive && !(flyingSource === 'left' && !isBlocked && !isDisabled);
-          return (
-            <Tile key={i} value={showVal ? val : 0} flashRed={isBlocked} disabled={isDisabled} />
-          );
+          const isBlocked = blockedKey === 'leftPending' && blockedSet.has(i);
+          const showVal = rowActive && !(flyingSource === 'left' && !isBlocked);
+          return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
 
@@ -122,12 +114,9 @@ export default function Arena() {
             ? frozenPendingRows.right[i]
             : grid[PENDING_ROW_START + i].some((v) => v !== 0) ||
               (gridEmpty && i === centerPendingRowIdx);
-          const isDisabled = disabledRight.has(i);
-          const isBlocked = redFlashSource === 'rightPending' && redFlashSet.has(i);
-          const showVal = rowActive && !(flyingSource === 'right' && !isBlocked && !isDisabled);
-          return (
-            <Tile key={i} value={showVal ? val : 0} flashRed={isBlocked} disabled={isDisabled} />
-          );
+          const isBlocked = blockedKey === 'rightPending' && blockedSet.has(i);
+          const showVal = rowActive && !(flyingSource === 'right' && !isBlocked);
+          return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
 
@@ -141,12 +130,9 @@ export default function Arena() {
             ? frozenPendingRows.bottom[i]
             : grid.some((row) => row[PENDING_COL_START + i] !== 0) ||
               (gridEmpty && i === centerPendingColIdx);
-          const isDisabled = disabledBottom.has(i);
-          const isBlocked = redFlashSource === 'bottomPending' && redFlashSet.has(i);
-          const showVal = colActive && !(flyingSource === 'bottom' && !isBlocked && !isDisabled);
-          return (
-            <Tile key={i} value={showVal ? val : 0} flashRed={isBlocked} disabled={isDisabled} />
-          );
+          const isBlocked = blockedKey === 'bottomPending' && blockedSet.has(i);
+          const showVal = colActive && !(flyingSource === 'bottom' && !isBlocked);
+          return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
     </>
