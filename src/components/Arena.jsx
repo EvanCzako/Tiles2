@@ -88,10 +88,12 @@ export default function Arena() {
         }}
       >
         {grid.map((row, r) =>
-          row.map((val, c) => (
+          row.map((val, c) => {
+            const isCorner = (r <= 1 || r >= 7) && (c <= 1 || c >= 7);
+            return (
             <div
               key={`${r}-${c}`}
-              className={`grid-cell${c === CENTER_COL || r === CENTER_ROW ? ' grid-cell--center' : ''}`}
+              className={`grid-cell${c === CENTER_COL || r === CENTER_ROW ? ' grid-cell--center' : ''}${isCorner ? ' grid-cell--corner' : ''}`}
               style={{ width: CELL, height: CELL }}
             >
               <Tile
@@ -100,7 +102,8 @@ export default function Arena() {
                 centerColumn={c === CENTER_COL || r === CENTER_ROW}
               />
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

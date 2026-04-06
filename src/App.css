@@ -228,6 +228,10 @@ body {
   border-radius: 6px;
 }
 
+.grid-cell--corner .tile {
+  background: transparent !important;
+}
+
 @keyframes flash-collapse {
   0% {
     transform: scale(1);
