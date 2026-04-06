@@ -68,7 +68,7 @@ body {
 }
 
 .combo {
-  font-size: clamp(0.8rem, 2.8vw, 1.2rem);
+  font-size: clamp(1rem, 3.5vw, 1.54rem);
   font-weight: 800;
   margin: 0;
   letter-spacing: 0.05em;
@@ -160,7 +160,7 @@ body {
   }
 
   .combo {
-    font-size: clamp(0.7rem, 2vh, 1rem);
+    font-size: clamp(0.87rem, 2.5vh, 1.33rem);
   }
 
   .hint {
