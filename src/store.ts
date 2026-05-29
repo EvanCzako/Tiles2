@@ -55,16 +55,27 @@ function getAvailableDirections(s: { grid: Grid; cfg: GridCfg }): Direction[] {
   return dirs;
 }
 
-function loadHighScore(): number {
-  if (typeof window === 'undefined') return 0;
-  const saved = localStorage.getItem('tilesHighScore');
-  return saved ? parseInt(saved, 10) : 0;
+const LS_KEY = 'tilesHighScores';
+
+function loadHighScores(): Record<string, number> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = localStorage.getItem(LS_KEY);
+    return saved ? (JSON.parse(saved) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
 }
 
-function saveHighScore(score: number): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('tilesHighScore', String(score));
-  }
+function loadHighScore(mode: string): number {
+  return loadHighScores()[mode] ?? 0;
+}
+
+function saveHighScore(mode: string, score: number): void {
+  if (typeof window === 'undefined') return;
+  const scores = loadHighScores();
+  scores[mode] = score;
+  localStorage.setItem(LS_KEY, JSON.stringify(scores));
 }
 
 interface InitState {
@@ -104,7 +115,7 @@ function initState(mode: GridMode = '9x9'): InitState {
     topPending: createInitialPending(cfg),
     bottomPending: createInitialPending(cfg),
     score: 0,
-    highScore: loadHighScore(),
+    highScore: loadHighScore(mode),
     combo: 1,
     gameOver: false,
     animating: false,
@@ -163,7 +174,7 @@ function endTurn(
       const currentScore = get().score;
       const currentHighScore = get().highScore;
       const newHighScore = Math.max(currentScore, currentHighScore);
-      saveHighScore(newHighScore);
+      saveHighScore(get().gridMode, newHighScore);
       set({ gameOver: true, highScore: newHighScore });
     } else {
       const available = getAvailableDirections(get());
@@ -410,7 +421,7 @@ const useGameStore = create<GameStore>((set, get) => ({
   },
 
   resetHighScore() {
-    saveHighScore(0);
+    saveHighScore(get().gridMode, 0);
     set({ highScore: 0 });
   },
 
@@ -519,7 +530,7 @@ const useGameStore = create<GameStore>((set, get) => ({
         const currentScore = get().score;
         const currentHighScore = get().highScore;
         const newHighScore = Math.max(currentScore, currentHighScore);
-        saveHighScore(newHighScore);
+        saveHighScore(get().gridMode, newHighScore);
         set({ gameOver: true, highScore: newHighScore });
       } else {
         const available = getAvailableDirections(get());
