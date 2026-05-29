@@ -7,14 +7,15 @@ interface GameHeaderProps {
   score: number;
   highScore: number;
   combo: number;
+  onMenu?: () => void;
 }
 
-export default function GameHeader({ score, highScore, combo }: GameHeaderProps) {
+export default function GameHeader({ score, highScore, combo, onMenu }: GameHeaderProps) {
   const comboColor = COMBO_COLORS[Math.min(combo - 1, 4)];
   const hint = isTouch ? 'swipe any direction to push' : '← → ↑ ↓ to push tiles in';
   return (
     <div className="game-header">
-      <h1 className="title">UNTILED</h1>
+      <h1 className="title" onClick={onMenu} style={onMenu ? { cursor: 'pointer' } : undefined}>UNTILED</h1>
       <div className="score-row">
         <p className="score">Score: {score}</p>
         <p className="high-score">Best: {highScore}</p>

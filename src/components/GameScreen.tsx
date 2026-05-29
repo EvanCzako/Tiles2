@@ -18,7 +18,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
 
   return (
     <div className="app">
-      <GameHeader score={score} highScore={highScore} combo={combo} />
+      <GameHeader score={score} highScore={highScore} combo={combo} onMenu={() => navigate('menu')} />
       <div className="arena-container">
         <div
           style={{
