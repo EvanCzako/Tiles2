@@ -20,10 +20,11 @@ import {
   NUKE_COMBO,
   nukeCrossScore,
 } from './gameLogic.js';
+import type { Grid, GridCfg } from './types.js';
 
 // Helper: build a sparse 9×9 grid from a list of [row, col, value] triples.
-function makeGrid(entries) {
-  const g = Array(ROWS)
+function makeGrid(entries: [number, number, number][]): Grid {
+  const g: Grid = Array(ROWS)
     .fill(null)
     .map(() => Array(COLS).fill(0));
   for (const [r, c, v] of entries) g[r][c] = v;
@@ -31,7 +32,7 @@ function makeGrid(entries) {
 }
 
 // Count non-zero cells.
-function tileCount(grid) {
+function tileCount(grid: Grid): number {
   return grid.flat().filter((v) => v !== 0).length;
 }
 
@@ -93,7 +94,7 @@ describe('Push Adjacent Placement', () => {
         .fill(null)
         .map(() => Array(COLS).fill(0)),
       [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ];
+    ] as Grid;
     grid[PENDING_ROW_START][1] = 1;
 
     const result = pushFromLeft(grid, [1, 0, 0, 0]);
@@ -108,7 +109,7 @@ describe('Push Adjacent Placement', () => {
         .fill(null)
         .map(() => Array(COLS).fill(0)),
       [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ];
+    ] as Grid;
     grid[PENDING_ROW_START][1] = 3;
 
     const result = pushFromLeft(grid, [1, 0, 0, 0]);
@@ -123,7 +124,7 @@ describe('Push Adjacent Placement', () => {
         .fill(null)
         .map(() => Array(COLS).fill(0)),
       [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ];
+    ] as Grid;
     grid[PENDING_ROW_START][1] = 1;
 
     const result = pushFromLeft(grid, [3, 0, 0, 0]);
@@ -135,7 +136,7 @@ describe('Push Adjacent Placement', () => {
 
 describe('Push From Left', () => {
   test('basic left push places tile adjacent to grid tile', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[PENDING_ROW_START][2] = 3;
@@ -148,7 +149,7 @@ describe('Push From Left', () => {
   });
 
   test('left push in empty row flies through', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
 
@@ -159,7 +160,7 @@ describe('Push From Left', () => {
 
 describe('Push From Right', () => {
   test('basic right push places tile adjacent to grid tile', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[PENDING_ROW_START][6] = 3;
@@ -173,7 +174,7 @@ describe('Push From Right', () => {
 
 describe('Push From Top', () => {
   test('top push into empty column flies through (no landing)', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
 
@@ -185,7 +186,7 @@ describe('Push From Top', () => {
   });
 
   test('top push lands on existing tile in column', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][PENDING_COL_START] = 3;
@@ -199,7 +200,7 @@ describe('Push From Top', () => {
 
 describe('Vertical Collapse (Gravity)', () => {
   test('tiles in upper half fall toward CENTER_ROW', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[0][CENTER_COL] = 1;
@@ -215,7 +216,7 @@ describe('Vertical Collapse (Gravity)', () => {
   });
 
   test('tiles in lower half rise toward CENTER_ROW', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[6][CENTER_COL] = 3;
@@ -231,7 +232,7 @@ describe('Vertical Collapse (Gravity)', () => {
   });
 
   test('tiles from top and bottom pack symmetrically toward CENTER_ROW', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[0][CENTER_COL] = 1;
@@ -247,7 +248,7 @@ describe('Vertical Collapse (Gravity)', () => {
 
 describe('Horizontal Collapse (Row Packing)', () => {
   test('left half tiles with gap pack right toward center', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][0] = 1;
@@ -261,7 +262,7 @@ describe('Horizontal Collapse (Row Packing)', () => {
   });
 
   test('right half tiles with gap pack left toward center', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][6] = 1;
@@ -274,7 +275,7 @@ describe('Horizontal Collapse (Row Packing)', () => {
   });
 
   test('right half contiguous tiles with leading center gap pack correctly', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][CENTER_COL + 1] = 1;
@@ -288,7 +289,7 @@ describe('Horizontal Collapse (Row Packing)', () => {
   });
 
   test('left half contiguous tiles with trailing center gap pack to center', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][0] = 1;
@@ -303,7 +304,7 @@ describe('Horizontal Collapse (Row Packing)', () => {
 
 describe('Cascading Collapse Loop', () => {
   test('gravity then row-packing interact correctly', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     // These tiles are above center; gravity pulls them to CENTER_ROW
@@ -318,7 +319,7 @@ describe('Cascading Collapse Loop', () => {
   });
 
   test('right side row packing does not overwrite or lose tiles', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][5] = 1;
@@ -339,7 +340,7 @@ describe('Cascading Collapse Loop', () => {
 
 describe('Edge Cases', () => {
   test('empty grid remains empty', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     const result = collapseGrid(grid);
@@ -347,7 +348,7 @@ describe('Edge Cases', () => {
   });
 
   test('already collapsed grid produces no moves', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     // Tiles already at center row, packed toward CENTER_COL
@@ -362,7 +363,7 @@ describe('Edge Cases', () => {
 
 describe('Center Column Fill Requirement', () => {
   test('left-side only tiles are pulled to center to fill CENTER_COL', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][0] = 1;
@@ -375,7 +376,7 @@ describe('Center Column Fill Requirement', () => {
   });
 
   test('right-side only tiles are pulled to center to fill CENTER_COL', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][6] = 1;
@@ -388,7 +389,7 @@ describe('Center Column Fill Requirement', () => {
   });
 
   test('single left-side tile moves to center', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][1] = 5;
@@ -400,7 +401,7 @@ describe('Center Column Fill Requirement', () => {
   });
 
   test('single right-side tile moves to center', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][7] = 3;
@@ -412,7 +413,7 @@ describe('Center Column Fill Requirement', () => {
   });
 
   test('empty rows stay empty (no tiles to fill center)', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][CENTER_COL] = 1; // center already filled
@@ -429,7 +430,7 @@ describe('Center Column Fill Requirement', () => {
 
 describe('No Overhang Boundary Checks', () => {
   test('full row tiles stay within bounds', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     for (let i = 0; i < COLS; i++) {
@@ -439,13 +440,13 @@ describe('No Overhang Boundary Checks', () => {
     const result = collapseGrid(grid);
     const row = result.grid[CENTER_ROW];
     // All tiles should be within bounds
-    expect(row.every((v, i) => i < COLS)).toBe(true);
+    expect(row.every((_v, i) => i < COLS)).toBe(true);
     // No overhang past COLS-1
     expect(row[COLS]).toBeUndefined();
   });
 
   test('right-side tiles do not overhang into left half', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][CENTER_COL + 1] = 1;
@@ -461,7 +462,7 @@ describe('No Overhang Boundary Checks', () => {
   });
 
   test('multiple rows collapse without interference', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     // Center row: mix of left and right tiles
@@ -486,7 +487,7 @@ describe('No Overhang Boundary Checks', () => {
 
 describe('Complex Cascading Scenarios', () => {
   test('gravity + horizontal + center fill all work together', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     // Floating left-side tile above center
@@ -503,7 +504,7 @@ describe('Complex Cascading Scenarios', () => {
   });
 
   test('row with tile on each side of center stays balanced', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[CENTER_ROW][CENTER_COL - 1] = 1;
@@ -519,7 +520,7 @@ describe('Complex Cascading Scenarios', () => {
   });
 
   test('prevents tiles from crossing the center boundary', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     // Center row: left-side at edge, right-side at edge
@@ -550,7 +551,7 @@ describe('Complex Cascading Scenarios', () => {
   });
 
   test('tile counts are preserved through collapse', () => {
-    const grid = Array(ROWS)
+    const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
     grid[1][0] = 1;
@@ -569,13 +570,10 @@ describe('Complex Cascading Scenarios', () => {
 
 // ---------------------------------------------------------------------------
 // Symmetry: no preferential treatment for any side
-// Verifies that lastVerticalSide and lastHorizontalSide are truly independent
-// and that each axis produces mirror-image results when flipped.
 // ---------------------------------------------------------------------------
 
 describe('Symmetry: no preferential treatment', () => {
   test('vertical: lastVerticalSide=top gives top priority, bottom gives bottom priority', () => {
-    // One tile in upper half, one in lower half
     const grid = makeGrid([
       [1, CENTER_COL, 1],
       [7, CENTER_COL, 2],
@@ -584,17 +582,14 @@ describe('Symmetry: no preferential treatment', () => {
     const { grid: gTop } = collapseGrid(grid, undefined, 'top', 'left');
     const { grid: gBot } = collapseGrid(grid, undefined, 'bottom', 'left');
 
-    // top priority: top tile (v=1) claims CENTER_ROW, bottom tile pushed to CENTER_ROW+1
     expect(gTop[CENTER_ROW][CENTER_COL]).toBe(1);
     expect(gTop[CENTER_ROW + 1][CENTER_COL]).toBe(2);
 
-    // bottom priority: bottom tile (v=2) claims CENTER_ROW, top tile pushed to CENTER_ROW-1
     expect(gBot[CENTER_ROW][CENTER_COL]).toBe(2);
     expect(gBot[CENTER_ROW - 1][CENTER_COL]).toBe(1);
   });
 
   test('horizontal: lastHorizontalSide=left gives left priority, right gives right priority', () => {
-    // One tile in left half, one in right half
     const grid = makeGrid([
       [CENTER_ROW, 1, 1],
       [CENTER_ROW, 7, 2],
@@ -603,11 +598,9 @@ describe('Symmetry: no preferential treatment', () => {
     const { grid: gLeft } = collapseGrid(grid, undefined, 'top', 'left');
     const { grid: gRight } = collapseGrid(grid, undefined, 'top', 'right');
 
-    // left priority: left tile (v=1) claims CENTER_COL, right tile pushed to CENTER_COL+1
     expect(gLeft[CENTER_ROW][CENTER_COL]).toBe(1);
     expect(gLeft[CENTER_ROW][CENTER_COL + 1]).toBe(2);
 
-    // right priority: right tile (v=2) claims CENTER_COL, left tile pushed to CENTER_COL-1
     expect(gRight[CENTER_ROW][CENTER_COL]).toBe(2);
     expect(gRight[CENTER_ROW][CENTER_COL - 1]).toBe(1);
   });
@@ -621,7 +614,6 @@ describe('Symmetry: no preferential treatment', () => {
     const { grid: gA } = collapseGrid(grid, undefined, 'bottom', 'left');
     const { grid: gB } = collapseGrid(grid, undefined, 'bottom', 'right');
 
-    // Regardless of horizontal side, bottom tile should claim CENTER_ROW
     expect(gA[CENTER_ROW][CENTER_COL]).toBe(2);
     expect(gB[CENTER_ROW][CENTER_COL]).toBe(2);
     expect(gA[CENTER_ROW - 1][CENTER_COL]).toBe(1);
@@ -637,7 +629,6 @@ describe('Symmetry: no preferential treatment', () => {
     const { grid: gA } = collapseGrid(grid, undefined, 'top', 'right');
     const { grid: gB } = collapseGrid(grid, undefined, 'bottom', 'right');
 
-    // Regardless of vertical side, right tile should claim CENTER_COL
     expect(gA[CENTER_ROW][CENTER_COL]).toBe(2);
     expect(gB[CENTER_ROW][CENTER_COL]).toBe(2);
     expect(gA[CENTER_ROW][CENTER_COL - 1]).toBe(1);
@@ -647,25 +638,10 @@ describe('Symmetry: no preferential treatment', () => {
 
 // ---------------------------------------------------------------------------
 // Move Animation Integrity
-// Verifies that gravityMoves / horizontalMoves are correct so every tile that
-// changes position has exactly one animation entry going to its real destination.
-//
-// Regression 1 (different values): consolidateMoves used to chain moves by
-// position alone, causing tile A (landing at row B) to be merged with tile B
-// (departing row B), making tile A fly too far and tile B lose its animation.
-//
-// Regression 2 (same value): consolidateCrossPhase must never chain two moves
-// that occur in the same while-loop pass, even when they have the same value
-// and the destination of one equals the source of the other. Two tiles of the
-// same value packed in a single pass (e.g., v=4 at rows 0 and 3 both sliding
-// to rows 3 and 4) must each get their own animation.
 // ---------------------------------------------------------------------------
 
 describe('Move Animation Integrity — gravity', () => {
   test('[BUG] two different tiles: landing pos of first equals start pos of second — separate moves', () => {
-    // tile1 (v=1) at row 0 packs down to row 3.
-    // tile2 (v=2) was at row 3, gets displaced to row 4 (CENTER_ROW).
-    // Old code would chain these into one move {0→4,v=1} and drop tile2 entirely.
     const grid = makeGrid([
       [0, CENTER_COL, 1],
       [3, CENTER_COL, 2],
@@ -679,16 +655,15 @@ describe('Move Animation Integrity — gravity', () => {
     const m2 = gravityMoves.find((m) => m.value === 2);
 
     expect(m1).toBeDefined();
-    expect(m1.fromRow).toBe(0);
-    expect(m1.toRow).toBe(3); // must NOT be 4 — tile1 only travels to row 3
+    expect(m1!.fromRow).toBe(0);
+    expect(m1!.toRow).toBe(3);
 
     expect(m2).toBeDefined();
-    expect(m2.fromRow).toBe(3);
-    expect(m2.toRow).toBe(4); // tile2 must have its own animation
+    expect(m2!.fromRow).toBe(3);
+    expect(m2!.toRow).toBe(4);
   });
 
   test('[BUG] three-tile column — no false chaining across different values', () => {
-    // 3 tiles above CENTER_ROW; packing produces consecutive source/dest overlaps.
     const grid = makeGrid([
       [0, CENTER_COL, 1],
       [2, CENTER_COL, 2],
@@ -696,7 +671,6 @@ describe('Move Animation Integrity — gravity', () => {
     ]);
     const { grid: g, gravityMoves } = collapseGrid(grid);
 
-    // Tiles pack to rows 2, 3, 4
     expect(g[2][CENTER_COL]).toBe(1);
     expect(g[3][CENTER_COL]).toBe(2);
     expect(g[4][CENTER_COL]).toBe(3);
@@ -705,17 +679,14 @@ describe('Move Animation Integrity — gravity', () => {
     const m2 = gravityMoves.find((m) => m.value === 2);
     const m3 = gravityMoves.find((m) => m.value === 3);
 
-    expect(m1?.toRow).toBe(2); // only 2 rows down
+    expect(m1?.toRow).toBe(2);
     expect(m2?.fromRow).toBe(2);
-    expect(m2?.toRow).toBe(3); // one row down
+    expect(m2?.toRow).toBe(3);
     expect(m3?.fromRow).toBe(3);
-    expect(m3?.toRow).toBe(4); // one row down
+    expect(m3?.toRow).toBe(4);
   });
 
   test('[BUG] two same-value tiles in same column: each gets its own gravity move', () => {
-    // tile1 (v=4) at row 0, tile2 (v=4) at row 3 — both pack down.
-    // In the while-loop pass, tile1 lands at row 3 and tile2 moves from row 3 to row 4.
-    // These are two DIFFERENT tiles; must NOT be chained into one move {0→4}.
     const grid = makeGrid([
       [0, CENTER_COL, 4],
       [3, CENTER_COL, 4],
@@ -724,18 +695,15 @@ describe('Move Animation Integrity — gravity', () => {
 
     expect(g[3][CENTER_COL]).toBe(4);
     expect(g[4][CENTER_COL]).toBe(4);
-    expect(gravityMoves.length).toBe(2); // two separate animations
+    expect(gravityMoves.length).toBe(2);
 
     const m1 = gravityMoves.find((m) => m.fromRow === 0);
     const m2 = gravityMoves.find((m) => m.fromRow === 3);
-    expect(m1?.toRow).toBe(3); // must NOT be 4
+    expect(m1?.toRow).toBe(3);
     expect(m2?.toRow).toBe(4);
   });
 
   test('[BUG] two same-value tiles in same row: each gets its own horizontal move', () => {
-    // tile1 (v=3) at col 0, tile2 (v=3) at col 3 — both pack right toward CENTER_COL.
-    // tile1 lands at col 3 and tile2 moves from col 3 to col 4 (CENTER_COL).
-    // These are two DIFFERENT tiles; must NOT be chained into one move {0→4}.
     const grid = makeGrid([
       [CENTER_ROW, 0, 3],
       [CENTER_ROW, 3, 3],
@@ -748,23 +716,20 @@ describe('Move Animation Integrity — gravity', () => {
 
     const m1 = horizontalMoves.find((m) => m.fromCol === 0);
     const m2 = horizontalMoves.find((m) => m.fromCol === 3);
-    expect(m1?.toCol).toBe(3); // must NOT be 4
+    expect(m1?.toCol).toBe(3);
     expect(m2?.toCol).toBe(4);
   });
 
   test('valid cross-phase chain: same tile moved by while-loop then post-processing merges correctly', () => {
-    // With lastPushedSide='bottom', top tiles are packed to CENTER_ROW-1 at most.
-    // Post-processing then slides them down to fill CENTER_ROW.
-    // These two moves ARE the same tile → they should be merged into one net move.
     const grid = makeGrid([[0, CENTER_COL, 3]]);
     const { grid: g, gravityMoves } = collapseGrid(grid, undefined, 'bottom', 'left');
 
     expect(g[CENTER_ROW][CENTER_COL]).toBe(3);
 
     const movesForTile = gravityMoves.filter((m) => m.value === 3);
-    expect(movesForTile.length).toBe(1); // exactly one (merged) move
+    expect(movesForTile.length).toBe(1);
     expect(movesForTile[0].fromRow).toBe(0);
-    expect(movesForTile[0].toRow).toBe(CENTER_ROW); // net destination is CENTER_ROW
+    expect(movesForTile[0].toRow).toBe(CENTER_ROW);
   });
 
   test('each of several tiles in separate columns gets its own gravity move', () => {
@@ -776,7 +741,6 @@ describe('Move Animation Integrity — gravity', () => {
     ]);
     const { gravityMoves } = collapseGrid(grid);
 
-    // 4 tiles, each in its own column — each should have a move
     for (const v of [1, 2, 3, 4]) {
       expect(gravityMoves.find((m) => m.value === v)).toBeDefined();
     }
@@ -817,7 +781,6 @@ describe('Move Animation Integrity — gravity', () => {
     ]);
     const { grid: g, gravityMoves } = collapseGrid(grid);
 
-    // top tile (v=1) packs down to CENTER_ROW; bottom tile (v=2) packs up to CENTER_ROW+1
     expect(g[CENTER_ROW][CENTER_COL]).toBe(1);
     expect(g[CENTER_ROW + 1][CENTER_COL]).toBe(2);
 
@@ -836,25 +799,20 @@ describe('Move Animation Integrity — gravity', () => {
     ]);
     const { grid: g, gravityMoves } = collapseGrid(grid);
 
-    // 4 tiles pack to rows 1,2,3,4
     expect(g[1][CENTER_COL]).toBe(1);
     expect(g[2][CENTER_COL]).toBe(2);
     expect(g[3][CENTER_COL]).toBe(3);
     expect(g[4][CENTER_COL]).toBe(4);
 
-    // Tile at row 0 moves; tiles at rows 1,2,3 move one row each
     expect(gravityMoves.find((m) => m.value === 1)?.toRow).toBe(1);
     expect(gravityMoves.find((m) => m.value === 2)?.toRow).toBe(2);
     expect(gravityMoves.find((m) => m.value === 3)?.toRow).toBe(3);
-    // tile4 was already at row 3... it goes to row 4 (CENTER_ROW)
     expect(gravityMoves.find((m) => m.value === 4)?.toRow).toBe(4);
   });
 });
 
 describe('Move Animation Integrity — horizontal', () => {
   test('[BUG] two left-side tiles: landing col of first equals start col of second — separate moves', () => {
-    // tile1 (v=1) at col 0 packs right to col 3.
-    // tile2 (v=2) was at col 3, gets displaced to col 4 (CENTER_COL).
     const grid = makeGrid([
       [CENTER_ROW, 0, 1],
       [CENTER_ROW, 3, 2],
@@ -868,17 +826,15 @@ describe('Move Animation Integrity — horizontal', () => {
     const m2 = horizontalMoves.find((m) => m.value === 2);
 
     expect(m1).toBeDefined();
-    expect(m1.fromCol).toBe(0);
-    expect(m1.toCol).toBe(3); // must NOT be 4
+    expect(m1!.fromCol).toBe(0);
+    expect(m1!.toCol).toBe(3);
 
     expect(m2).toBeDefined();
-    expect(m2.fromCol).toBe(3);
-    expect(m2.toCol).toBe(4);
+    expect(m2!.fromCol).toBe(3);
+    expect(m2!.toCol).toBe(4);
   });
 
   test('[BUG] two right-side tiles: landing col of first equals start col of second — separate moves', () => {
-    // tile1 (v=1) at col 8 packs left to col 5.
-    // tile2 (v=2) was at col 5, gets displaced to col 4 (CENTER_COL).
     const grid = makeGrid([
       [CENTER_ROW, 8, 1],
       [CENTER_ROW, 5, 2],
@@ -905,7 +861,6 @@ describe('Move Animation Integrity — horizontal', () => {
     ]);
     const { grid: g, horizontalMoves } = collapseGrid(grid, undefined, 'top', 'right');
 
-    // 3 tiles pack left to cols 4,5,6
     expect(g[CENTER_ROW][4]).toBe(3);
     expect(g[CENTER_ROW][5]).toBe(2);
     expect(g[CENTER_ROW][6]).toBe(1);
@@ -938,7 +893,6 @@ describe('Move Animation Integrity — push then collapse', () => {
   });
 
   test('pushFromTop + collapseGrid: tiles land and gravity settles correctly', () => {
-    // Build a column with an existing tile at CENTER_ROW so pushFromTop has somewhere to land
     const baseGrid = makeGrid([[CENTER_ROW, PENDING_COL_START, 2]]);
     const pending = [1, 0, 0, 0, 0];
     const pushed = pushFromTop(baseGrid, pending);
@@ -967,7 +921,7 @@ describe('annihilateAdjacent', () => {
     expect(annihilatedCells.length).toBe(2);
     expect(g[CENTER_ROW][CENTER_COL]).toBe(0);
     expect(g[CENTER_ROW][CENTER_COL + 1]).toBe(0);
-    expect(score).toBe(6); // 2 tiles × value 3
+    expect(score).toBe(6);
   });
 
   test('single isolated tile is not annihilated', () => {
@@ -985,7 +939,7 @@ describe('annihilateAdjacent', () => {
     ]);
     const { annihilatedCells, score } = annihilateAdjacent(grid);
     expect(annihilatedCells.length).toBe(3);
-    expect(score).toBe(6); // 3 × 2
+    expect(score).toBe(6);
   });
 
   test('two separate pairs of different values both annihilate independently', () => {
@@ -997,7 +951,7 @@ describe('annihilateAdjacent', () => {
     ]);
     const { annihilatedCells, score } = annihilateAdjacent(grid);
     expect(annihilatedCells.length).toBe(4);
-    expect(score).toBe(2 + 6); // 2×1 + 2×3
+    expect(score).toBe(2 + 6);
   });
 
   test('adjacent tiles with different values are not annihilated', () => {
@@ -1019,7 +973,7 @@ describe('annihilateAdjacent', () => {
 
 // ── checkGameOver ─────────────────────────────────────────────────────────────
 
-const CFG = {
+const CFG: GridCfg = {
   ROWS,
   COLS,
   PENDING_SIZE,
@@ -1041,24 +995,19 @@ describe('checkGameOver', () => {
   });
 
   test('all entry edges occupied → game over', () => {
-    // Block left side: col 0 of all pending rows
-    // Block right side: col COLS-1 of all pending rows
-    // Block top side: row 0 of all pending cols
-    // Block bottom side: row ROWS-1 of all pending cols
-    const entries = [];
+    const entries: [number, number, number][] = [];
     for (let i = 0; i < PENDING_SIZE; i++) {
-      entries.push([PENDING_ROW_START + i, 0, 1]);           // left blocked
-      entries.push([PENDING_ROW_START + i, COLS - 1, 1]);    // right blocked
-      entries.push([0, PENDING_COL_START + i, 1]);           // top blocked
-      entries.push([ROWS - 1, PENDING_COL_START + i, 1]);    // bottom blocked
+      entries.push([PENDING_ROW_START + i, 0, 1]);
+      entries.push([PENDING_ROW_START + i, COLS - 1, 1]);
+      entries.push([0, PENDING_COL_START + i, 1]);
+      entries.push([ROWS - 1, PENDING_COL_START + i, 1]);
     }
     const grid = makeGrid(entries);
     expect(checkGameOver(grid, CFG)).toBe(true);
   });
 
   test('one entry edge open → NOT game over', () => {
-    // Same as above but leave row 0 of CENTER_COL open (top side can still land)
-    const entries = [];
+    const entries: [number, number, number][] = [];
     for (let i = 0; i < PENDING_SIZE; i++) {
       entries.push([PENDING_ROW_START + i, 0, 1]);
       entries.push([PENDING_ROW_START + i, COLS - 1, 1]);
@@ -1072,8 +1021,7 @@ describe('checkGameOver', () => {
   });
 
   test('packed outer border but inner pending rows open → NOT game over', () => {
-    // Filling col 0 and col COLS-1 of non-pending rows doesn't block the center push
-    const entries = [];
+    const entries: [number, number, number][] = [];
     for (let r = 0; r < ROWS; r++) {
       if (r < PENDING_ROW_START || r >= PENDING_ROW_START + PENDING_SIZE) {
         entries.push([r, 0, 1], [r, COLS - 1, 1]);
@@ -1124,9 +1072,9 @@ describe('nukeCrossScore', () => {
 
   test('tiles in both center row and col — no double-counting at intersection', () => {
     const grid = makeGrid([
-      [CENTER_ROW, 2, 3], // center row
-      [CENTER_ROW, CENTER_COL, 2], // intersection
-      [2, CENTER_COL, 1], // center col
+      [CENTER_ROW, 2, 3],
+      [CENTER_ROW, CENTER_COL, 2],
+      [2, CENTER_COL, 1],
     ]);
     const { cells, score } = nukeCrossScore(grid);
     expect(cells.length).toBe(3);
@@ -1135,8 +1083,8 @@ describe('nukeCrossScore', () => {
 
   test('cells outside the cross are not collected', () => {
     const grid = makeGrid([
-      [0, 0, 7], // not in cross
-      [CENTER_ROW, CENTER_COL, 1], // in cross
+      [0, 0, 7],
+      [CENTER_ROW, CENTER_COL, 1],
     ]);
     const { cells, score } = nukeCrossScore(grid);
     expect(cells.length).toBe(1);
@@ -1144,9 +1092,7 @@ describe('nukeCrossScore', () => {
   });
 
   test('fifth cascade reaches NUKE_COMBO — nuke condition', () => {
-    // nextCombo(5) === NUKE_COMBO is what triggers nukeCenterAndSettle in store.js
     expect(nextCombo(5)).toBe(NUKE_COMBO);
-    // post-nuke cascades stay capped at NUKE_COMBO and don't re-trigger
     expect(nextCombo(NUKE_COMBO)).toBe(NUKE_COMBO);
   });
 });
@@ -1166,7 +1112,7 @@ describe('nextCombo', () => {
 
   test('caps at NUKE_COMBO (6)', () => {
     expect(nextCombo(6)).toBe(6);
-    expect(nextCombo(10)).toBe(6); // defensive
+    expect(nextCombo(10)).toBe(6);
   });
 
   test('MAX_COMBO is 5, NUKE_COMBO is 6', () => {
@@ -1190,7 +1136,7 @@ describe('nextCombo', () => {
       ]),
       CFG
     );
-    expect(score * 1).toBe(6); // 2 tiles × value 3 × combo 1
+    expect(score * 1).toBe(6);
   });
 
   test('score at 2x: annScore × 2', () => {
@@ -1201,7 +1147,7 @@ describe('nextCombo', () => {
       ]),
       CFG
     );
-    expect(score * 2).toBe(12); // 2 tiles × value 3 × combo 2
+    expect(score * 2).toBe(12);
   });
 
   test('score at 5x (max): annScore × 5', () => {
@@ -1212,6 +1158,6 @@ describe('nextCombo', () => {
       ]),
       CFG
     );
-    expect(score * 5).toBe(20); // 2 tiles × value 2 × combo 5
+    expect(score * 5).toBe(20);
   });
 });

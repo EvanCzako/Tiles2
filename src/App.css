@@ -182,7 +182,6 @@ body {
   position: absolute;
   display: grid;
   gap: 4px;
-  background: #16163a;
   border-radius: 6px;
 }
 
@@ -385,3 +384,211 @@ body {
     display: none;
   }
 }
+
+/* ── Menu Screen ───────────────────────────────────────────────────────────── */
+
+.menu-screen {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 56px;
+  padding: 40px 24px;
+}
+
+.menu-title-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-title {
+  font-size: clamp(2.4rem, 10vw, 4rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  margin: 0;
+}
+
+.menu-subtitle {
+  font-size: clamp(0.78rem, 2.5vw, 1rem);
+  color: #888888;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(320px, 80vw);
+}
+
+.menu-btn {
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 700;
+  transition: filter 0.15s;
+}
+
+.menu-btn:hover {
+  filter: brightness(1.15);
+}
+
+.menu-btn--primary {
+  background: #4488ee;
+  color: #ffffff;
+  font-size: clamp(1rem, 3vw, 1.15rem);
+  padding: 16px;
+}
+
+.menu-btn--secondary {
+  background: #272744;
+  color: #aaaacc;
+  font-size: clamp(0.9rem, 2.5vw, 1.05rem);
+  padding: 14px;
+  border: 1px solid #3a3a5c;
+}
+
+/* ── Shared screen header (HTP + Settings) ────────────────────────────────── */
+
+.htp-screen,
+.settings-screen {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+}
+
+.screen-back-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: clamp(0.9rem, 2.5vw, 1rem);
+  font-weight: 600;
+  color: #4488ee;
+  cursor: pointer;
+  padding: 0;
+}
+
+.screen-back-btn:hover {
+  color: #6aa8ff;
+}
+
+.screen-heading {
+  font-size: clamp(1rem, 3vw, 1.25rem);
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+/* ── How to Play Screen ───────────────────────────────────────────────────── */
+
+.htp-content {
+  overflow-y: auto;
+  padding: 8px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.htp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.htp-section-title {
+  font-size: clamp(0.95rem, 2.5vw, 1.05rem);
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.htp-section-body {
+  font-size: clamp(0.87rem, 2.2vw, 0.97rem);
+  color: #cccccc;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Settings Screen ─────────────────────────────────────────────────────── */
+
+.settings-content {
+  padding: 16px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #888888;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.settings-mode-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-high-score {
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  font-weight: 900;
+  color: #ffcc00;
+  margin: 0;
+}
+
+.settings-reset-btn {
+  align-self: flex-start;
+  background: #272744;
+  color: #cc4444;
+  border: 1px solid #3a3a5c;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-family: inherit;
+  font-size: clamp(0.82rem, 2vw, 0.92rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.settings-reset-btn:hover {
+  filter: brightness(1.2);
+}
+
+/* ── Game Over: secondary menu button ─────────────────────────────────────── */
+
+.game-over-menu-btn {
+  background: #272744 !important;
+  color: #aaaacc !important;
+  border: 1px solid #3a3a5c !important;
+}
+
+.game-over-menu-btn:hover {
+  background: #33335a !important;
+}
+

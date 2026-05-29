@@ -1,11 +1,15 @@
-import useGameStore from './store';
-import { useScale } from './hooks/useScale';
-import { useInput } from './hooks/useInput';
-import GameHeader from './components/GameHeader';
-import Arena from './components/Arena';
-import './App.css';
+import useGameStore from '../store';
+import { useScale } from '../hooks/useScale';
+import { useInput } from '../hooks/useInput';
+import GameHeader from './GameHeader';
+import Arena from './Arena';
+import type { Screen } from '../types';
 
-export default function App() {
+interface GameScreenProps {
+  navigate: (screen: Screen) => void;
+}
+
+export default function GameScreen({ navigate }: GameScreenProps) {
   const { score, highScore, combo, triggerPush, layout } = useGameStore();
   const { CONTAINER_W, CONTAINER_H } = layout;
 
@@ -33,7 +37,7 @@ export default function App() {
               transformOrigin: '0 0',
             }}
           >
-            <Arena />
+            <Arena navigate={navigate} />
           </div>
         </div>
       </div>

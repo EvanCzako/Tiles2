@@ -24,12 +24,29 @@ import {
   topPendingPos,
   bottomPendingPos,
 } from './layout';
+import type {
+  Grid,
+  GridCfg,
+  Layout,
+  GridMode,
+  Direction,
+  VerticalSide,
+  HorizontalSide,
+  FlyingSource,
+  PendingKey,
+  FlyingTileDescriptor,
+  FrozenPendingRows,
+  PendingCommit,
+  PendingCommitPayload,
+  GameStore,
+} from './types';
 
-function getAvailableDirections(s) {
+function getAvailableDirections(s: { grid: Grid; cfg: GridCfg }): Direction[] {
   const { grid, cfg } = s;
-  const dummy = Array(cfg.PENDING_SIZE).fill(1);
-  const anyLanding = (r) => r.landings.some((l) => !l.flyThrough);
-  const dirs = [];
+  const dummy = Array(cfg.PENDING_SIZE).fill(1) as number[];
+  const anyLanding = (r: { landings: { flyThrough?: boolean }[] }) =>
+    r.landings.some((l) => !l.flyThrough);
+  const dirs: Direction[] = [];
   if (anyLanding(pushFromLeft(grid, dummy, cfg))) dirs.push('right');
   if (anyLanding(pushFromRight(grid, dummy, cfg))) dirs.push('left');
   if (anyLanding(pushFromTop(grid, dummy, cfg))) dirs.push('down');
@@ -37,19 +54,43 @@ function getAvailableDirections(s) {
   return dirs;
 }
 
-function loadHighScore() {
+function loadHighScore(): number {
   if (typeof window === 'undefined') return 0;
   const saved = localStorage.getItem('tilesHighScore');
   return saved ? parseInt(saved, 10) : 0;
 }
 
-function saveHighScore(score) {
+function saveHighScore(score: number): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('tilesHighScore', String(score));
   }
 }
 
-function initState(mode = '9x9') {
+interface InitState {
+  gridMode: GridMode;
+  cfg: GridCfg;
+  layout: Layout;
+  grid: Grid;
+  leftPending: number[];
+  rightPending: number[];
+  topPending: number[];
+  bottomPending: number[];
+  score: number;
+  highScore: number;
+  combo: number;
+  gameOver: boolean;
+  animating: boolean;
+  flyingTiles: FlyingTileDescriptor[];
+  flyingSource: FlyingSource;
+  annihilateSet: Set<string>;
+  collapsingCells: Set<string>;
+  pendingCommit: PendingCommit | null;
+  frozenPendingRows: FrozenPendingRows | null;
+  lastVerticalSide: VerticalSide;
+  lastHorizontalSide: HorizontalSide;
+}
+
+function initState(mode: GridMode = '9x9'): InitState {
   const cfg = GRID_CONFIGS[mode];
   const layout = getLayout(cfg);
   return {
@@ -71,20 +112,20 @@ function initState(mode = '9x9') {
     annihilateSet: new Set(),
     collapsingCells: new Set(),
     pendingCommit: null,
-    frozenPendingRows: null, // snapshot of per-row activity at push time; held through cascade
-    lastVerticalSide: 'top', // last side pushed on vertical axis: 'top' or 'bottom'
-    lastHorizontalSide: 'left', // last side pushed on horizontal axis: 'left' or 'right'
+    frozenPendingRows: null,
+    lastVerticalSide: 'top',
+    lastHorizontalSide: 'left',
   };
 }
 
-function buildFrozenSnapshot(grid, cfg) {
+function buildFrozenSnapshot(grid: Grid, cfg: GridCfg): FrozenPendingRows {
   const { PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
   const gridEmpty = grid.every((row) => row.every((v) => v === 0));
   const centerRowIdx = CENTER_ROW - PENDING_ROW_START;
   const centerColIdx = CENTER_COL - PENDING_COL_START;
-  const rowActive = (i) =>
+  const rowActive = (i: number) =>
     grid[PENDING_ROW_START + i].some((v) => v !== 0) || (gridEmpty && i === centerRowIdx);
-  const colActive = (i) =>
+  const colActive = (i: number) =>
     grid.some((row) => row[PENDING_COL_START + i] !== 0) || (gridEmpty && i === centerColIdx);
   return {
     left: Array.from({ length: PENDING_SIZE }, (_, i) => rowActive(i)),
@@ -97,7 +138,12 @@ function buildFrozenSnapshot(grid, cfg) {
 // ── End-of-turn helper ─────────────────────────────────────────────────────
 // Transition is atomic (never passes through null) to avoid Arena re-deriving
 // visibility from a mismatched grid mid-render.
-function endTurn(grid, pendingPayload, get, set) {
+function endTurn(
+  grid: Grid,
+  pendingPayload: Partial<InitState>,
+  get: () => GameStore,
+  set: (partial: Partial<GameStore>) => void
+): void {
   const curCfg = get().cfg;
   set({
     animating: false,
@@ -123,15 +169,15 @@ function endTurn(grid, pendingPayload, get, set) {
 
 // ── Collapse + annihilate loop ─────────────────────────────────────────────
 function runCollapseLoop(
-  grid,
-  pendingPayload,
-  get,
-  set,
-  lastVerticalSide = 'top',
-  lastHorizontalSide = 'left',
-  combo = 1,
-  nukeUsed = false
-) {
+  grid: Grid,
+  pendingPayload: Partial<InitState>,
+  get: () => GameStore,
+  set: (partial: Partial<GameStore>) => void,
+  lastVerticalSide: VerticalSide = 'top',
+  lastHorizontalSide: HorizontalSide = 'left',
+  combo: number = 1,
+  nukeUsed: boolean = false
+): void {
   const { cfg } = get();
   const {
     grid: collapsedGrid,
@@ -140,7 +186,7 @@ function runCollapseLoop(
     horizontalMoves,
   } = collapseGrid(grid, cfg, lastVerticalSide, lastHorizontalSide);
 
-  const afterCollapse = (settled) => {
+  const afterCollapse = (settled: Grid) => {
     const curCfg = get().cfg;
     const {
       annihilatedCells,
@@ -247,18 +293,18 @@ function runCollapseLoop(
 
 // ── Center nuke triggered on reaching 5x multiplier ────────────────────────
 function nukeCenterAndSettle(
-  grid,
-  pendingPayload,
-  get,
-  set,
-  lastVerticalSide,
-  lastHorizontalSide
-) {
+  grid: Grid,
+  pendingPayload: Partial<InitState>,
+  get: () => GameStore,
+  set: (partial: Partial<GameStore>) => void,
+  lastVerticalSide: VerticalSide,
+  lastHorizontalSide: HorizontalSide
+): void {
   const { cfg } = get();
   const { ROWS, COLS, CENTER_ROW, CENTER_COL } = cfg;
 
   // All cross cells flash; nukeCrossScore gives the non-empty subset for score/clear
-  const flashCells = new Set();
+  const flashCells = new Set<string>();
   for (let c = 0; c < COLS; c++) flashCells.add(`${CENTER_ROW},${c}`);
   for (let r = 0; r < ROWS; r++) {
     if (r !== CENTER_ROW) flashCells.add(`${r},${CENTER_COL}`);
@@ -294,7 +340,7 @@ function nukeCenterAndSettle(
 }
 
 // ── Store ───────────────────────────────────────────────────────────────────
-const useGameStore = create((set, get) => ({
+const useGameStore = create<GameStore>((set, get) => ({
   ...initState(),
 
   reset() {
@@ -306,17 +352,21 @@ const useGameStore = create((set, get) => ({
     set({ highScore: 0 });
   },
 
-  setGridMode(mode) {
+  setGridMode(mode: GridMode) {
     set(initState(mode));
   },
 
-  triggerPush(direction) {
+  triggerPush(direction: Direction) {
     const s = get();
     if (s.animating || s.gameOver) return;
     set({ combo: 1 });
 
     const { cfg, layout } = s;
-    let pushFn, pendingArg, pendingKey, getPendingPos;
+    let pushFn: (grid: Grid, pending: number[], cfg: GridCfg) => ReturnType<typeof pushFromLeft>;
+    let pendingArg: number[];
+    let pendingKey: PendingKey;
+    let getPendingPos: (i: number) => { x: number; y: number };
+
     if (direction === 'left') {
       pushFn = pushFromRight;
       pendingArg = s.rightPending;
@@ -332,22 +382,22 @@ const useGameStore = create((set, get) => ({
       pendingArg = s.topPending;
       pendingKey = 'topPending';
       getPendingPos = (i) => topPendingPos(i, layout);
-    } else if (direction === 'up') {
+    } else {
       pushFn = pushFromBottom;
       pendingArg = s.bottomPending;
       pendingKey = 'bottomPending';
       getPendingPos = (i) => bottomPendingPos(i, layout);
-    } else return;
+    }
 
     // Track each axis independently so left/right pushes don't bias the vertical
     // center, and top/bottom pushes don't bias the horizontal center.
-    const newVerticalSide =
+    const newVerticalSide: VerticalSide =
       pendingKey === 'topPending'
         ? 'top'
         : pendingKey === 'bottomPending'
           ? 'bottom'
           : s.lastVerticalSide;
-    const newHorizontalSide =
+    const newHorizontalSide: HorizontalSide =
       pendingKey === 'leftPending'
         ? 'left'
         : pendingKey === 'rightPending'
@@ -363,23 +413,25 @@ const useGameStore = create((set, get) => ({
     // Fully refreshed values (result.pending) are applied only when cascade settles.
     const intermediatePending = pendingArg.map((v, i) => (blockedIndices.includes(i) ? v : 0));
 
-    const pc = {
-      payload: { grid: result.grid, [pendingKey]: result.pending },
+    const payload: PendingCommitPayload = { grid: result.grid, [pendingKey]: result.pending };
+    const pc: PendingCommit = {
+      payload,
       blockedIndices,
       pendingKey,
     };
 
-    const rowIsVisible = (idx) => {
+    const rowIsVisible = (idx: number): boolean => {
       if (pendingKey === 'topPending' || pendingKey === 'bottomPending')
         return s.grid.some((row) => row[cfg.PENDING_COL_START + idx] !== 0);
       return s.grid[cfg.PENDING_ROW_START + idx].some((v) => v !== 0);
     };
 
-    const flying = landings
+    const flying: FlyingTileDescriptor[] = landings
       .filter((land) => !land.flyThrough || rowIsVisible(land.pendingIdx))
       .map((land, idx) => {
         const from = getPendingPos(land.pendingIdx);
-        let to, flyThrough;
+        let to: { x: number; y: number };
+        let flyThrough: boolean;
         if (land.flyThrough) {
           flyThrough = true;
           if (pendingKey === 'leftPending')
@@ -389,7 +441,7 @@ const useGameStore = create((set, get) => ({
           else to = { x: from.x, y: -CELL };
         } else {
           flyThrough = false;
-          to = cellPos(land.row, land.col, layout);
+          to = cellPos(land.row!, land.col!, layout);
         }
         return { id: idx, value: pendingArg[land.pendingIdx], from, to, flyThrough };
       });
@@ -422,7 +474,7 @@ const useGameStore = create((set, get) => ({
     set({
       pendingCommit: pc,
       flyingTiles: flying,
-      flyingSource: pendingKey.replace('Pending', ''),
+      flyingSource: pendingKey.replace('Pending', '') as HorizontalSide | VerticalSide,
       animating: true,
       frozenPendingRows,
     });
@@ -430,7 +482,8 @@ const useGameStore = create((set, get) => ({
     setTimeout(() => {
       const cur = get();
       const { pendingCommit: commit } = cur;
-      const { payload, pendingKey: pKey } = commit;
+      if (!commit) return;
+      const { payload: commitPayload, pendingKey: pKey } = commit;
 
       set({
         flyingTiles: [],
@@ -439,7 +492,7 @@ const useGameStore = create((set, get) => ({
       });
 
       // Commit the grid + intermediate pending (used slots zeroed); hold refreshed pending for cascade end
-      const { grid: payloadGrid, ...pendingPayload } = payload;
+      const { grid: payloadGrid, ...pendingPayload } = commitPayload;
       set({
         grid: payloadGrid,
         [pKey]: intermediatePending,
@@ -448,7 +501,7 @@ const useGameStore = create((set, get) => ({
       });
       runCollapseLoop(
         payloadGrid,
-        pendingPayload,
+        pendingPayload as Partial<InitState>,
         get,
         set,
         newVerticalSide,

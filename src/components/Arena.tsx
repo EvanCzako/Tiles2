@@ -3,8 +3,13 @@ import { CELL, GAP } from '../constants';
 import Tile from './Tile';
 import FlyingTile from './FlyingTile';
 import GameOverOverlay from './GameOverOverlay';
+import type { Screen } from '../types';
 
-export default function Arena() {
+interface ArenaProps {
+  navigate?: (screen: Screen) => void;
+}
+
+export default function Arena({ navigate }: ArenaProps) {
   const {
     grid,
     leftPending,
@@ -26,7 +31,7 @@ export default function Arena() {
   } = useGameStore();
 
   const blockedKey = pendingCommit?.pendingKey ?? null;
-  const blockedSet = pendingCommit ? new Set(pendingCommit.blockedIndices) : new Set();
+  const blockedSet = pendingCommit ? new Set(pendingCommit.blockedIndices) : new Set<number>();
 
   const { sideOffset, gridPx, gridTopOffset, pendingColTop, topPendingLeft, bottomPendingY } =
     layout;
@@ -37,7 +42,14 @@ export default function Arena() {
 
   return (
     <>
-      {gameOver && <GameOverOverlay score={score} highScore={highScore} onReset={reset} />}
+      {gameOver && (
+        <GameOverOverlay
+          score={score}
+          highScore={highScore}
+          onReset={reset}
+          onMenu={navigate ? () => navigate('menu') : undefined}
+        />
+      )}
 
       {flyingTiles.map((ft) => (
         <FlyingTile
@@ -91,17 +103,17 @@ export default function Arena() {
           row.map((val, c) => {
             const isCorner = (r <= 1 || r >= 7) && (c <= 1 || c >= 7);
             return (
-            <div
-              key={`${r}-${c}`}
-              className={`grid-cell${c === CENTER_COL || r === CENTER_ROW ? ' grid-cell--center' : ''}${isCorner ? ' grid-cell--corner' : ''}`}
-              style={{ width: CELL, height: CELL }}
-            >
-              <Tile
-                value={collapsingCells.has(`${r},${c}`) ? 0 : val}
-                flashAnnihilate={annihilateSet.has(`${r},${c}`)}
-                centerColumn={c === CENTER_COL || r === CENTER_ROW}
-              />
-            </div>
+              <div
+                key={`${r}-${c}`}
+                className={`grid-cell${c === CENTER_COL || r === CENTER_ROW ? ' grid-cell--center' : ''}${isCorner ? ' grid-cell--corner' : ''}`}
+                style={{ width: CELL, height: CELL }}
+              >
+                <Tile
+                  value={collapsingCells.has(`${r},${c}`) ? 0 : val}
+                  flashAnnihilate={annihilateSet.has(`${r},${c}`)}
+                  centerColumn={c === CENTER_COL || r === CENTER_ROW}
+                />
+              </div>
             );
           })
         )}

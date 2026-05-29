@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { HEADER_H, LANDSCAPE_PANEL_W } from '../constants';
 
-export function computeScale(containerW, containerH) {
+export function computeScale(containerW: number, containerH: number): number {
   const vw = window.visualViewport?.width ?? document.documentElement.clientWidth;
   const vh = window.visualViewport?.height ?? document.documentElement.clientHeight;
   const landscape = vw > vh;
@@ -10,14 +10,13 @@ export function computeScale(containerW, containerH) {
   return Math.max(0.28, Math.min(1, availW / containerW, availH / containerH));
 }
 
-export function useScale(containerW, containerH) {
+export function useScale(containerW: number, containerH: number): number {
   const [scale, setScale] = useState(() =>
     typeof document === 'undefined' ? 1 : computeScale(containerW, containerH)
   );
 
   // Use a ref to avoid stale closures in the resize observer callback
   const dimsRef = useRef({ containerW, containerH });
-  // eslint-disable-next-line react-hooks/refs -- intentional: always-current ref pattern
   dimsRef.current = { containerW, containerH };
 
   // Recalculate when grid dimensions change (e.g. mode switch)
@@ -27,7 +26,7 @@ export function useScale(containerW, containerH) {
 
   // Recalculate on viewport resize / orientation change
   useLayoutEffect(() => {
-    let rafId = null;
+    let rafId: number | null = null;
     const update = () => {
       const vh = window.visualViewport?.height ?? document.documentElement.clientHeight;
       document.documentElement.style.setProperty('--app-h', `${vh}px`);
@@ -35,13 +34,13 @@ export function useScale(containerW, containerH) {
       setScale(computeScale(cW, cH));
     };
     const defer = () => {
-      cancelAnimationFrame(rafId);
+      if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(update);
     };
 
-    let orientationTimer = null;
+    let orientationTimer: ReturnType<typeof setTimeout> | null = null;
     const onOrientation = () => {
-      clearTimeout(orientationTimer);
+      if (orientationTimer !== null) clearTimeout(orientationTimer);
       orientationTimer = setTimeout(update, 150);
     };
 
@@ -53,8 +52,8 @@ export function useScale(containerW, containerH) {
     update();
 
     return () => {
-      cancelAnimationFrame(rafId);
-      clearTimeout(orientationTimer);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (orientationTimer !== null) clearTimeout(orientationTimer);
       ro.disconnect();
       window.removeEventListener('resize', defer);
       window.visualViewport?.removeEventListener('resize', defer);

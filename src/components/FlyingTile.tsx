@@ -2,7 +2,16 @@ import { useState, useEffect } from 'react';
 import { CELL, ANIM_MS } from '../constants';
 import { getTileColor } from '../gameLogic';
 
-export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough = false }) {
+interface FlyingTileProps {
+  value: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  flyThrough?: boolean;
+}
+
+export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough = false }: FlyingTileProps) {
   const [active, setActive] = useState(false);
 
   useEffect(() => {

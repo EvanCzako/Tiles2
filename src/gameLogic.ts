@@ -1,3 +1,15 @@
+import type {
+  Grid,
+  GridCfg,
+  PushResult,
+  Landing,
+  Move,
+  CollapseResult,
+  AnnihilateResult,
+  NukeCrossResult,
+  TileColor,
+} from './types';
+
 export const ROWS = 9;
 export const COLS = 9;
 export const PENDING_SIZE = 5;
@@ -6,7 +18,7 @@ export const CENTER_ROW = Math.floor(ROWS / 2);
 export const PENDING_ROW_START = CENTER_ROW - Math.floor(PENDING_SIZE / 2);
 export const PENDING_COL_START = CENTER_COL - Math.floor(PENDING_SIZE / 2);
 
-export const GRID_CONFIGS = {
+export const GRID_CONFIGS: Record<string, GridCfg> = {
   '9x9': {
     ROWS: 9,
     COLS: 9,
@@ -20,16 +32,16 @@ export const GRID_CONFIGS = {
 
 const DEFAULT_CFG = GRID_CONFIGS['9x9'];
 
-export function createInitialGrid(cfg = DEFAULT_CFG) {
+export function createInitialGrid(cfg: GridCfg = DEFAULT_CFG): Grid {
   const { ROWS, COLS, PENDING_SIZE, PENDING_COL_START, CENTER_ROW } = cfg;
-  const grid = Array(ROWS)
+  const grid: Grid = Array(ROWS)
     .fill(null)
     .map(() => Array(COLS).fill(0));
   // Diamond centered at (CENTER_ROW, CENTER_COL):
   // PENDING_SIZE wide at center row, tapering by 2 per row above/below
   for (let step = 0, width = PENDING_SIZE; width >= 1; step++, width -= 2) {
     const start = PENDING_COL_START + Math.floor((PENDING_SIZE - width) / 2);
-    const fillRow = (r) => {
+    const fillRow = (r: number) => {
       if (r >= 0 && r < ROWS) {
         for (let j = 0; j < width; j++) {
           grid[r][start + j] = Math.min(j + 1, width - j);
@@ -44,7 +56,7 @@ export function createInitialGrid(cfg = DEFAULT_CFG) {
 
 // Side-panel distribution: heavily favors 1–3, makes 4–7 rare
 // 1: ~40%, 2: ~30%, 3: ~18%, 4: ~7%, 5: ~3%, 6: ~1.5%, 7: ~0.5%
-function randTileSide() {
+function randTileSide(): number {
   const r = Math.random() * 49;
   if (r < 10) return 1;
   if (r < 19) return 2;
@@ -55,28 +67,28 @@ function randTileSide() {
   return 7;
 }
 
-function randTileSideExcluding(exclude) {
-  let v;
+function randTileSideExcluding(exclude: number): number {
+  let v: number;
   do {
     v = randTileSide();
   } while (v === exclude);
   return v;
 }
 
-export function createInitialPending(cfg = DEFAULT_CFG) {
-  const arr = [];
+export function createInitialPending(cfg: GridCfg = DEFAULT_CFG): number[] {
+  const arr: number[] = [];
   for (let i = 0; i < cfg.PENDING_SIZE; i++) arr.push(randTileSideExcluding(arr[i - 1] ?? -1));
   return arr;
 }
 
-export function pushFromLeft(grid, leftPending, cfg = DEFAULT_CFG) {
+export function pushFromLeft(grid: Grid, leftPending: number[], cfg: GridCfg = DEFAULT_CFG): PushResult {
   const { COLS, PENDING_SIZE, PENDING_ROW_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map((row) => [...row]);
   const newPending = [...leftPending];
-  const landings = [];
-  const blockedIndices = [];
+  const landings: Landing[] = [];
+  const blockedIndices: number[] = [];
 
-  const rowLeftmost = [];
+  const rowLeftmost: number[] = [];
   for (let i = 0; i < PENDING_SIZE; i++) {
     const row = PENDING_ROW_START + i;
     let leftmost = -1;
@@ -117,14 +129,14 @@ export function pushFromLeft(grid, leftPending, cfg = DEFAULT_CFG) {
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
-export function pushFromRight(grid, rightPending, cfg = DEFAULT_CFG) {
+export function pushFromRight(grid: Grid, rightPending: number[], cfg: GridCfg = DEFAULT_CFG): PushResult {
   const { COLS, PENDING_SIZE, PENDING_ROW_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map((row) => [...row]);
   const newPending = [...rightPending];
-  const landings = [];
-  const blockedIndices = [];
+  const landings: Landing[] = [];
+  const blockedIndices: number[] = [];
 
-  const rowRightmost = [];
+  const rowRightmost: number[] = [];
   for (let i = 0; i < PENDING_SIZE; i++) {
     const row = PENDING_ROW_START + i;
     let rightmost = -1;
@@ -165,12 +177,12 @@ export function pushFromRight(grid, rightPending, cfg = DEFAULT_CFG) {
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
-export function pushFromTop(grid, topPending, cfg = DEFAULT_CFG) {
+export function pushFromTop(grid: Grid, topPending: number[], cfg: GridCfg = DEFAULT_CFG): PushResult {
   const { ROWS, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map((row) => [...row]);
   const newPending = [...topPending];
-  const landings = [];
-  const blockedIndices = [];
+  const landings: Landing[] = [];
+  const blockedIndices: number[] = [];
 
   for (let i = 0; i < newPending.length; i++) {
     const col = PENDING_COL_START + i;
@@ -206,12 +218,12 @@ export function pushFromTop(grid, topPending, cfg = DEFAULT_CFG) {
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
 
-export function pushFromBottom(grid, bottomPending, cfg = DEFAULT_CFG) {
+export function pushFromBottom(grid: Grid, bottomPending: number[], cfg: GridCfg = DEFAULT_CFG): PushResult {
   const { ROWS, PENDING_COL_START, CENTER_ROW, CENTER_COL } = cfg;
   const newGrid = grid.map((row) => [...row]);
   const newPending = [...bottomPending];
-  const landings = [];
-  const blockedIndices = [];
+  const landings: Landing[] = [];
+  const blockedIndices: number[] = [];
 
   for (let i = 0; i < newPending.length; i++) {
     const col = PENDING_COL_START + i;
@@ -251,8 +263,8 @@ export function pushFromBottom(grid, bottomPending, cfg = DEFAULT_CFG) {
 // represent the same tile continuing its journey (A→B in the loop, B→C in post-processing
 // → net move A→C). Within a single while-loop pass every move is a distinct tile, so
 // chaining must only happen across the phase boundary, never within a single phase.
-function consolidateCrossPhase(mainMoves, postMoves) {
-  const destToIdx = new Map();
+function consolidateCrossPhase(mainMoves: Move[], postMoves: Move[]): Move[] {
+  const destToIdx = new Map<string, number>();
   const result = mainMoves.map((m) => ({ ...m }));
   for (let i = 0; i < result.length; i++) {
     destToIdx.set(`${result[i].toRow},${result[i].toCol},${result[i].value}`, i);
@@ -260,7 +272,7 @@ function consolidateCrossPhase(mainMoves, postMoves) {
   for (const m of postMoves) {
     const fromKey = `${m.fromRow},${m.fromCol},${m.value}`;
     if (destToIdx.has(fromKey)) {
-      const prevIdx = destToIdx.get(fromKey);
+      const prevIdx = destToIdx.get(fromKey)!;
       destToIdx.delete(fromKey);
       result[prevIdx] = { ...result[prevIdx], toRow: m.toRow, toCol: m.toCol };
       destToIdx.set(`${m.toRow},${m.toCol},${m.value}`, prevIdx);
@@ -272,21 +284,21 @@ function consolidateCrossPhase(mainMoves, postMoves) {
 }
 
 export function collapseGrid(
-  grid,
-  cfg = DEFAULT_CFG,
-  lastVerticalSide = 'top',
-  lastHorizontalSide = 'left'
-) {
+  grid: Grid,
+  cfg: GridCfg = DEFAULT_CFG,
+  lastVerticalSide: 'top' | 'bottom' = 'top',
+  lastHorizontalSide: 'left' | 'right' = 'left'
+): CollapseResult {
   const { ROWS, COLS, CENTER_COL, CENTER_ROW } = cfg;
   const newGrid = grid.map((row) => [...row]);
-  const gravityWhileMoves = [];
-  const gravityPostMoves = [];
-  const horizontalWhileMoves = [];
-  const horizontalPostMoves = [];
+  const gravityWhileMoves: Move[] = [];
+  const gravityPostMoves: Move[] = [];
+  const horizontalWhileMoves: Move[] = [];
+  const horizontalPostMoves: Move[] = [];
 
   // Phase 1: gravity toward CENTER_ROW — always runs before horizontal
   while (true) {
-    const moves = [];
+    const moves: Move[] = [];
     for (let c = 0; c < COLS; c++) {
       const colSnapshot = newGrid.map((row) => row[c]);
 
@@ -294,7 +306,7 @@ export function collapseGrid(
         // Bottom claims CENTER_ROW
         // Bottom tiles (rows CENTER_ROW..ROWS-1): pack upward to CENTER_ROW
         {
-          const tiles = [];
+          const tiles: { r: number; v: number }[] = [];
           for (let r = CENTER_ROW; r < ROWS; r++) {
             if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
           }
@@ -314,7 +326,7 @@ export function collapseGrid(
         }
         // Top tiles (rows 0..CENTER_ROW-1): pack downward, stay ≤ CENTER_ROW-1
         {
-          const tiles = [];
+          const tiles: { r: number; v: number }[] = [];
           for (let r = 0; r < CENTER_ROW; r++) {
             if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
           }
@@ -345,7 +357,7 @@ export function collapseGrid(
         // Top claims CENTER_ROW
         // Top tiles (rows 0..CENTER_ROW): pack downward to CENTER_ROW
         {
-          const tiles = [];
+          const tiles: { r: number; v: number }[] = [];
           for (let r = 0; r <= CENTER_ROW; r++) {
             if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
           }
@@ -365,7 +377,7 @@ export function collapseGrid(
         }
         // Bottom tiles (rows CENTER_ROW+1..ROWS-1): pack upward, stay ≥ CENTER_ROW+1
         {
-          const tiles = [];
+          const tiles: { r: number; v: number }[] = [];
           for (let r = CENTER_ROW + 1; r < ROWS; r++) {
             if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
           }
@@ -414,8 +426,8 @@ export function collapseGrid(
     }
     // All tiles above CENTER_ROW: slide down to fill it
     if (bottommost < CENTER_ROW) {
-      const tiles = [],
-        fromRows = [];
+      const tiles: number[] = [],
+        fromRows: number[] = [];
       for (let r = topmost; r <= bottommost; r++) {
         if (newGrid[r][c] !== 0) {
           tiles.push(newGrid[r][c]);
@@ -439,8 +451,8 @@ export function collapseGrid(
     }
     // All tiles below CENTER_ROW: slide up to fill it
     else if (topmost > CENTER_ROW) {
-      const tiles = [],
-        fromRows = [];
+      const tiles: number[] = [],
+        fromRows: number[] = [];
       for (let r = topmost; r <= bottommost; r++) {
         if (newGrid[r][c] !== 0) {
           tiles.push(newGrid[r][c]);
@@ -469,7 +481,7 @@ export function collapseGrid(
 
   // Phase 2: horizontal collapse toward CENTER_COL — lastHorizontalSide claims CENTER_COL
   while (true) {
-    const moves = [];
+    const moves: Move[] = [];
     for (let r = 0; r < ROWS; r++) {
       const rowSnapshot = [...newGrid[r]];
 
@@ -477,7 +489,7 @@ export function collapseGrid(
         // Left claims CENTER_COL
         // Left tiles (cols 0..CENTER_COL): pack rightward to CENTER_COL
         {
-          const tiles = [];
+          const tiles: { c: number; v: number }[] = [];
           for (let c = 0; c <= CENTER_COL; c++) {
             if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
           }
@@ -497,7 +509,7 @@ export function collapseGrid(
         }
         // Right tiles (cols CENTER_COL+1..COLS-1): pack leftward, stay ≥ CENTER_COL+1
         {
-          const tiles = [];
+          const tiles: { c: number; v: number }[] = [];
           for (let c = CENTER_COL + 1; c < COLS; c++) {
             if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
           }
@@ -528,7 +540,7 @@ export function collapseGrid(
         // Right claims CENTER_COL
         // Right tiles (cols CENTER_COL..COLS-1): pack leftward to CENTER_COL
         {
-          const tiles = [];
+          const tiles: { c: number; v: number }[] = [];
           for (let c = CENTER_COL; c < COLS; c++) {
             if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
           }
@@ -548,7 +560,7 @@ export function collapseGrid(
         }
         // Left tiles (cols 0..CENTER_COL-1): pack rightward, stay ≤ CENTER_COL-1
         {
-          const tiles = [];
+          const tiles: { c: number; v: number }[] = [];
           for (let c = 0; c < CENTER_COL; c++) {
             if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
           }
@@ -597,8 +609,8 @@ export function collapseGrid(
     }
     // All tiles left of CENTER_COL: slide right to fill it
     if (rightmost < CENTER_COL) {
-      const tiles = [],
-        fromCols = [];
+      const tiles: number[] = [],
+        fromCols: number[] = [];
       for (let c = leftmost; c <= rightmost; c++) {
         if (newGrid[r][c] !== 0) {
           tiles.push(newGrid[r][c]);
@@ -622,8 +634,8 @@ export function collapseGrid(
     }
     // All tiles right of CENTER_COL: slide left to fill it
     else if (leftmost > CENTER_COL) {
-      const tiles = [],
-        fromCols = [];
+      const tiles: number[] = [],
+        fromCols: number[] = [];
       for (let c = leftmost; c <= rightmost; c++) {
         if (newGrid[r][c] !== 0) {
           tiles.push(newGrid[r][c]);
@@ -655,10 +667,10 @@ export function collapseGrid(
   };
 }
 
-export function annihilateAdjacent(grid, cfg = DEFAULT_CFG) {
+export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): AnnihilateResult {
   const { ROWS, COLS } = cfg;
   const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-  const toAnnihilate = [];
+  const toAnnihilate: [number, number][] = [];
   let score = 0;
 
   for (let r = 0; r < ROWS; r++) {
@@ -666,19 +678,19 @@ export function annihilateAdjacent(grid, cfg = DEFAULT_CFG) {
       if (visited[r][c] || grid[r][c] === 0) continue;
 
       const value = grid[r][c];
-      const group = [];
-      const queue = [[r, c]];
+      const group: [number, number][] = [];
+      const queue: [number, number][] = [[r, c]];
       visited[r][c] = true;
 
       while (queue.length > 0) {
-        const [cr, cc] = queue.shift();
+        const [cr, cc] = queue.shift()!;
         group.push([cr, cc]);
         for (const [dr, dc] of [
           [-1, 0],
           [1, 0],
           [0, -1],
           [0, 1],
-        ]) {
+        ] as [number, number][]) {
           const nr = cr + dr,
             nc = cc + dc;
           if (
@@ -710,13 +722,17 @@ export function annihilateAdjacent(grid, cfg = DEFAULT_CFG) {
 }
 
 // Returns true if pushing from this side would land at least one tile (non-flythrough).
-function sideHasLanding(grid, cfg, pushFn) {
-  const dummy = Array(cfg.PENDING_SIZE).fill(1);
+function sideHasLanding(
+  grid: Grid,
+  cfg: GridCfg,
+  pushFn: (grid: Grid, pending: number[], cfg: GridCfg) => PushResult
+): boolean {
+  const dummy = Array(cfg.PENDING_SIZE).fill(1) as number[];
   const result = pushFn(grid, dummy, cfg);
   return result.landings.some((l) => !l.flyThrough);
 }
 
-export function checkGameOver(grid, cfg) {
+export function checkGameOver(grid: Grid, cfg: GridCfg): boolean {
   return (
     !sideHasLanding(grid, cfg, pushFromLeft) &&
     !sideHasLanding(grid, cfg, pushFromRight) &&
@@ -727,15 +743,15 @@ export function checkGameOver(grid, cfg) {
 
 export const MAX_COMBO = 5;
 export const NUKE_COMBO = 6;
-export function nextCombo(combo) {
+export function nextCombo(combo: number): number {
   return Math.min(combo + 1, NUKE_COMBO);
 }
 
 // Returns the cells and raw score for the center-cross nuke (center row + center col).
 // score should be multiplied by MAX_COMBO by the caller.
-export function nukeCrossScore(grid, cfg = DEFAULT_CFG) {
+export function nukeCrossScore(grid: Grid, cfg: GridCfg = DEFAULT_CFG): NukeCrossResult {
   const { ROWS, COLS, CENTER_ROW, CENTER_COL } = cfg;
-  const cells = [];
+  const cells: [number, number][] = [];
   let score = 0;
   for (let c = 0; c < COLS; c++) {
     if (grid[CENTER_ROW][c] !== 0) {
@@ -752,8 +768,8 @@ export function nukeCrossScore(grid, cfg = DEFAULT_CFG) {
   return { cells, score };
 }
 
-export function getTileColor(value) {
-  const colors = {
+export function getTileColor(value: number): TileColor {
+  const colors: Record<number, TileColor> = {
     0: { bg: '#272744', text: 'transparent' },
     1: { bg: '#4488ee', text: '#fff' }, // blue
     2: { bg: '#22bbaa', text: '#fff' }, // teal

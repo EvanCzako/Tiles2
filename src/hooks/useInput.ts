@@ -1,11 +1,12 @@
 import { useEffect, useCallback, useRef } from 'react';
+import type { Direction } from '../types';
 
-export function useInput(triggerPush) {
-  const touchStart = useRef(null);
+export function useInput(triggerPush: (direction: Direction) => void): void {
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
   const handleKey = useCallback(
-    (e) => {
+    (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         triggerPush('left');
@@ -30,10 +31,10 @@ export function useInput(triggerPush) {
 
   // ── Touch / swipe ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const onStart = (e) => {
+    const onStart = (e: TouchEvent) => {
       touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
-    const onEnd = (e) => {
+    const onEnd = (e: TouchEvent) => {
       if (!touchStart.current) return;
       const dx = e.changedTouches[0].clientX - touchStart.current.x;
       const dy = e.changedTouches[0].clientY - touchStart.current.y;

@@ -1,13 +1,21 @@
 import { CELL } from '../constants';
 import { getTileColor } from '../gameLogic';
 
+interface TileProps {
+  value: number;
+  size?: number;
+  flashing?: boolean;
+  flashAnnihilate?: boolean;
+  centerColumn?: boolean;
+}
+
 export default function Tile({
   value,
   size = CELL,
   flashing = false,
   flashAnnihilate = false,
   centerColumn = false,
-}) {
+}: TileProps) {
   const { bg, text } = getTileColor(value);
   return (
     <div
