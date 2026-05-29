@@ -101,11 +101,13 @@ export default function Arena({ navigate }: ArenaProps) {
       >
         {grid.map((row, r) =>
           row.map((val, c) => {
-            const isCorner = (r <= 1 || r >= 7) && (c <= 1 || c >= 7);
+            const isCorner =
+              (r < PENDING_ROW_START || r >= PENDING_ROW_START + cfg.PENDING_SIZE) &&
+              (c < PENDING_COL_START || c >= PENDING_COL_START + cfg.PENDING_SIZE);
             return (
               <div
                 key={`${r}-${c}`}
-                className={`grid-cell${c === CENTER_COL || r === CENTER_ROW ? ' grid-cell--center' : ''}${isCorner ? ' grid-cell--corner' : ''}`}
+                className={`grid-cell${c === CENTER_COL || r === CENTER_ROW ? ' grid-cell--center' : ''}${isCorner ? ` grid-cell--corner${val === 0 ? ' grid-cell--corner--empty' : ''}` : ''}`}
                 style={{ width: CELL, height: CELL }}
               >
                 <Tile

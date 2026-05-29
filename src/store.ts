@@ -14,6 +14,7 @@ import {
   MAX_COMBO,
   NUKE_COMBO,
   nukeCrossScore,
+  settleCorners,
 } from './gameLogic';
 import { CELL, GAP, ANIM_MS, FLASH_MS, AUTO_MOVE_MS } from './constants';
 import {
@@ -136,8 +137,9 @@ function buildFrozenSnapshot(grid: Grid, cfg: GridCfg): FrozenPendingRows {
 }
 
 // ── End-of-turn helper ─────────────────────────────────────────────────────
-// Transition is atomic (never passes through null) to avoid Arena re-deriving
-// visibility from a mismatched grid mid-render.
+// Two-phase corner settlement mirrors main-grid collapse: vertical gravity first,
+// then horizontal. Phases are animated sequentially so tiles only ever move in one
+// axis at a time (no diagonals). New tiles appear after both phases complete.
 function endTurn(
   grid: Grid,
   pendingPayload: Partial<InitState>,
@@ -145,26 +147,86 @@ function endTurn(
   set: (partial: Partial<GameStore>) => void
 ): void {
   const curCfg = get().cfg;
-  set({
-    animating: false,
-    combo: 1,
-    frozenPendingRows: buildFrozenSnapshot(grid, curCfg),
-    ...pendingPayload,
-  });
-  if (checkGameOver(grid, curCfg)) {
-    const currentScore = get().score;
-    const currentHighScore = get().highScore;
-    const newHighScore = Math.max(currentScore, currentHighScore);
-    saveHighScore(newHighScore);
-    set({ gameOver: true, highScore: newHighScore });
-  } else {
-    const available = getAvailableDirections(get());
-    if (available.length === 1) {
-      setTimeout(() => {
-        if (!get().gameOver && !get().animating) get().triggerPush(available[0]);
-      }, AUTO_MOVE_MS);
+  const { grid: settledGrid, midGrid, verticalMoves, horizontalMoves } = settleCorners(grid, curCfg);
+
+  const finalize = (finalGrid: Grid) => {
+    set({
+      animating: false,
+      combo: 1,
+      flyingTiles: [],
+      collapsingCells: new Set(),
+      grid: finalGrid,
+      frozenPendingRows: buildFrozenSnapshot(finalGrid, curCfg),
+      ...pendingPayload,
+    });
+    if (checkGameOver(finalGrid, curCfg)) {
+      const currentScore = get().score;
+      const currentHighScore = get().highScore;
+      const newHighScore = Math.max(currentScore, currentHighScore);
+      saveHighScore(newHighScore);
+      set({ gameOver: true, highScore: newHighScore });
+    } else {
+      const available = getAvailableDirections(get());
+      if (available.length === 1) {
+        setTimeout(() => {
+          if (!get().gameOver && !get().animating) get().triggerPush(available[0]);
+        }, AUTO_MOVE_MS);
+      }
     }
-  }
+  };
+
+  // After both corner phases complete, check whether the new tile placements
+  // created any matches. If so, re-enter the cascade; otherwise finalise.
+  const afterCornerSettle = (finalGrid: Grid) => {
+    const { annihilatedCells } = annihilateAdjacent(finalGrid, curCfg);
+    if (annihilatedCells.length === 0) { finalize(finalGrid); return; }
+    set({ grid: finalGrid });
+    const s = get();
+    runCollapseLoop(finalGrid, pendingPayload, get, set, s.lastVerticalSide, s.lastHorizontalSide, 1, false);
+  };
+
+  // Phase 2: horizontal slides, then check for new matches.
+  const runPhase2 = () => {
+    if (horizontalMoves.length === 0) { afterCornerSettle(settledGrid); return; }
+    const curLayout = get().layout;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        set({
+          flyingTiles: horizontalMoves.map((m, idx) => ({
+            id: `corner-h-${idx}`,
+            value: m.value,
+            from: cellPos(m.fromRow, m.fromCol, curLayout),
+            to: cellPos(m.toRow, m.toCol, curLayout),
+            flyThrough: false,
+          })),
+          collapsingCells: new Set(horizontalMoves.map((m) => `${m.fromRow},${m.fromCol}`)),
+        });
+        setTimeout(() => afterCornerSettle(settledGrid), ANIM_MS + 30);
+      })
+    );
+  };
+
+  // Phase 1: vertical slides, then hand off to phase 2.
+  if (verticalMoves.length === 0) { runPhase2(); return; }
+  const curLayout = get().layout;
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      set({
+        flyingTiles: verticalMoves.map((m, idx) => ({
+          id: `corner-v-${idx}`,
+          value: m.value,
+          from: cellPos(m.fromRow, m.fromCol, curLayout),
+          to: cellPos(m.toRow, m.toCol, curLayout),
+          flyThrough: false,
+        })),
+        collapsingCells: new Set(verticalMoves.map((m) => `${m.fromRow},${m.fromCol}`)),
+      });
+      setTimeout(() => {
+        set({ grid: midGrid, flyingTiles: [], collapsingCells: new Set() });
+        runPhase2();
+      }, ANIM_MS + 30);
+    })
+  );
 }
 
 // ── Collapse + annihilate loop ─────────────────────────────────────────────

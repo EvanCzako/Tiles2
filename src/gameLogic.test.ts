@@ -73,9 +73,11 @@ describe('Grid Initialization', () => {
     // Two rows above and below center (2, 6): width 1 — col 4
     expect(grid[CENTER_ROW - 2][CENTER_COL]).toBe(1);
     expect(grid[CENTER_ROW + 2][CENTER_COL]).toBe(1);
-    // Top and bottom rows are empty
-    expect(grid[0].every((v) => v === 0)).toBe(true);
-    expect(grid[8].every((v) => v === 0)).toBe(true);
+    // Top and bottom rows: arm cells are empty, corner cells are populated
+    expect(grid[0].slice(PENDING_COL_START, PENDING_COL_START + PENDING_SIZE).every((v) => v === 0)).toBe(true);
+    expect(grid[8].slice(PENDING_COL_START, PENDING_COL_START + PENDING_SIZE).every((v) => v === 0)).toBe(true);
+    expect(grid[0][0]).toBeGreaterThan(0);
+    expect(grid[0][COLS - 1]).toBeGreaterThan(0);
   });
 
   test('createInitialPending returns array of 5 non-repeating tiles for any side', () => {
@@ -308,9 +310,9 @@ describe('Cascading Collapse Loop', () => {
       .fill(null)
       .map(() => Array(COLS).fill(0));
     // These tiles are above center; gravity pulls them to CENTER_ROW
-    grid[0][0] = 1;
-    grid[1][2] = 2;
-    grid[2][4] = 3;
+    grid[0][CENTER_COL] = 1;
+    grid[1][CENTER_COL - 1] = 2;
+    grid[2][CENTER_COL + 1] = 3;
 
     const result = collapseGrid(grid);
     // After gravity + row packing all three should be packed toward CENTER_COL at CENTER_ROW
@@ -490,10 +492,9 @@ describe('Complex Cascading Scenarios', () => {
     const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
-    // Floating left-side tile above center
-    grid[0][0] = 1;
-    // Floating right-side tile below center
-    grid[8][8] = 2;
+    // Use non-corner positions: top arm and bottom arm of the cross
+    grid[0][CENTER_COL] = 1;
+    grid[8][CENTER_COL] = 2;
 
     const result = collapseGrid(grid);
     const centerRow = result.grid[CENTER_ROW];

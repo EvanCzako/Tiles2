@@ -28,15 +28,25 @@ export const GRID_CONFIGS: Record<string, GridCfg> = {
     CENTER_COL: 4,
     CENTER_ROW: 4,
   },
+  '11x11': {
+    ROWS: 11,
+    COLS: 11,
+    PENDING_SIZE: 7,
+    PENDING_ROW_START: 2,
+    PENDING_COL_START: 2,
+    CENTER_COL: 5,
+    CENTER_ROW: 5,
+  },
 };
 
 const DEFAULT_CFG = GRID_CONFIGS['9x9'];
 
 export function createInitialGrid(cfg: GridCfg = DEFAULT_CFG): Grid {
-  const { ROWS, COLS, PENDING_SIZE, PENDING_COL_START, CENTER_ROW } = cfg;
+  const { ROWS, COLS, PENDING_SIZE, PENDING_COL_START, PENDING_ROW_START, CENTER_ROW } = cfg;
   const grid: Grid = Array(ROWS)
     .fill(null)
     .map(() => Array(COLS).fill(0));
+
   // Diamond centered at (CENTER_ROW, CENTER_COL):
   // PENDING_SIZE wide at center row, tapering by 2 per row above/below
   for (let step = 0, width = PENDING_SIZE; width >= 1; step++, width -= 2) {
@@ -51,6 +61,31 @@ export function createInitialGrid(cfg: GridCfg = DEFAULT_CFG): Grid {
     fillRow(CENTER_ROW - step);
     if (step > 0) fillRow(CENTER_ROW + step);
   }
+
+  // Populate corner obstacle blocks — filled left-to-right, top-to-bottom within each
+  // block so each cell excludes its left and above neighbor (no adjacent same values).
+  const fillCornerBlock = (rows: number[], cols: number[]) => {
+    for (let ri = 0; ri < rows.length; ri++) {
+      for (let ci = 0; ci < cols.length; ci++) {
+        const r = rows[ri];
+        const c = cols[ci];
+        const above = ri > 0 ? grid[rows[ri - 1]][c] : -1;
+        const left = ci > 0 ? grid[r][cols[ci - 1]] : -1;
+        grid[r][c] = randTileSideExcluding2(above, left);
+      }
+    }
+  };
+
+  const topRows = Array.from({ length: PENDING_ROW_START }, (_, i) => i);
+  const botRows = Array.from({ length: PENDING_ROW_START }, (_, i) => ROWS - PENDING_ROW_START + i);
+  const leftCols = Array.from({ length: PENDING_COL_START }, (_, i) => i);
+  const rightCols = Array.from({ length: PENDING_COL_START }, (_, i) => COLS - PENDING_COL_START + i);
+
+  fillCornerBlock(topRows, leftCols);
+  fillCornerBlock(topRows, rightCols);
+  fillCornerBlock(botRows, leftCols);
+  fillCornerBlock(botRows, rightCols);
+
   return grid;
 }
 
@@ -73,6 +108,105 @@ function randTileSideExcluding(exclude: number): number {
     v = randTileSide();
   } while (v === exclude);
   return v;
+}
+
+function randTileSideExcluding2(a: number, b: number): number {
+  let v: number;
+  do {
+    v = randTileSide();
+  } while (v === a || v === b);
+  return v;
+}
+
+// Each corner block described by its inner row/col (closest to board centre) and
+// outer row/col (furthest). Gravity pulls tiles toward the inner edges.
+interface CornerBlockSpec {
+  rows: [number, number]; // [innerRow, outerRow]
+  cols: [number, number]; // [innerCol, outerCol]
+}
+
+function getCornerBlockSpecs(cfg: GridCfg): CornerBlockSpec[] {
+  const { ROWS, COLS, PENDING_ROW_START, PENDING_COL_START } = cfg;
+  return [
+    { rows: [PENDING_ROW_START - 1, 0],              cols: [PENDING_COL_START - 1, 0] },           // top-left
+    { rows: [PENDING_ROW_START - 1, 0],              cols: [COLS - PENDING_COL_START, COLS - 1] },  // top-right
+    { rows: [ROWS - PENDING_ROW_START, ROWS - 1],    cols: [PENDING_COL_START - 1, 0] },           // bottom-left
+    { rows: [ROWS - PENDING_ROW_START, ROWS - 1],    cols: [COLS - PENDING_COL_START, COLS - 1] }, // bottom-right
+  ];
+}
+
+// Two-phase corner gravity matching the main grid's collapse model:
+//   Phase 1 (vertical)  — each column packs toward its inner row
+//   Phase 2 (horizontal) — each row packs toward its inner col
+// Returns both move sets separately so the store can animate them sequentially.
+export function settleCorners(
+  grid: Grid,
+  cfg: GridCfg
+): { grid: Grid; midGrid: Grid; verticalMoves: Move[]; horizontalMoves: Move[] } {
+  const midGrid = grid.map((row) => [...row]);
+  const verticalMoves: Move[] = [];
+
+  // Phase 1: vertical — for each column in each corner, slide outer→inner if inner is empty
+  for (const { rows, cols } of getCornerBlockSpecs(cfg)) {
+    const [innerRow, outerRow] = rows;
+    for (const c of cols) {
+      if (midGrid[innerRow][c] === 0 && midGrid[outerRow][c] !== 0) {
+        const v = midGrid[outerRow][c];
+        midGrid[innerRow][c] = v;
+        midGrid[outerRow][c] = 0;
+        verticalMoves.push({ value: v, fromRow: outerRow, fromCol: c, toRow: innerRow, toCol: c });
+      }
+    }
+  }
+
+  const settledGrid = midGrid.map((row) => [...row]);
+  const horizontalMoves: Move[] = [];
+
+  // Phase 2: horizontal — for each row in each corner, slide outer→inner if inner is empty
+  for (const { rows, cols } of getCornerBlockSpecs(cfg)) {
+    const [innerCol, outerCol] = cols;
+    for (const r of rows) {
+      if (settledGrid[r][innerCol] === 0 && settledGrid[r][outerCol] !== 0) {
+        const v = settledGrid[r][outerCol];
+        settledGrid[r][innerCol] = v;
+        settledGrid[r][outerCol] = 0;
+        horizontalMoves.push({ value: v, fromRow: r, fromCol: outerCol, toRow: r, toCol: innerCol });
+      }
+    }
+  }
+
+  // Refill any remaining empty positions (always the outermost cells).
+  // Fill inner-to-outer so adjacency exclusion sees already-placed neighbours.
+  for (const { rows, cols } of getCornerBlockSpecs(cfg)) {
+    for (const r of rows) {
+      for (const c of cols) {
+        if (settledGrid[r][c] !== 0) continue;
+        const excluded = new Set<number>();
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as [number, number][]) {
+          const nr = r + dr, nc = c + dc;
+          if (
+            nr >= 0 && nr < cfg.ROWS &&
+            nc >= 0 && nc < cfg.COLS &&
+            isCornerCell(nr, nc, cfg) &&
+            settledGrid[nr][nc] !== 0
+          ) excluded.add(settledGrid[nr][nc]);
+        }
+        let v: number;
+        do { v = randTileSide(); } while (excluded.has(v));
+        settledGrid[r][c] = v;
+      }
+    }
+  }
+
+  return { grid: settledGrid, midGrid, verticalMoves, horizontalMoves };
+}
+
+export function isCornerCell(r: number, c: number, cfg: GridCfg): boolean {
+  const { PENDING_ROW_START, PENDING_SIZE, PENDING_COL_START } = cfg;
+  return (
+    (r < PENDING_ROW_START || r >= PENDING_ROW_START + PENDING_SIZE) &&
+    (c < PENDING_COL_START || c >= PENDING_COL_START + PENDING_SIZE)
+  );
 }
 
 export function createInitialPending(cfg: GridCfg = DEFAULT_CFG): number[] {
@@ -296,7 +430,8 @@ export function collapseGrid(
   const horizontalWhileMoves: Move[] = [];
   const horizontalPostMoves: Move[] = [];
 
-  // Phase 1: gravity toward CENTER_ROW — always runs before horizontal
+  // Phase 1: gravity toward CENTER_ROW — always runs before horizontal.
+  // Corner cells are immovable obstacles: excluded from tile lists and never zeroed.
   while (true) {
     const moves: Move[] = [];
     for (let c = 0; c < COLS; c++) {
@@ -304,50 +439,43 @@ export function collapseGrid(
 
       if (lastVerticalSide === 'bottom') {
         // Bottom claims CENTER_ROW
-        // Bottom tiles (rows CENTER_ROW..ROWS-1): pack upward to CENTER_ROW
         {
           const tiles: { r: number; v: number }[] = [];
           for (let r = CENTER_ROW; r < ROWS; r++) {
-            if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
+            if (colSnapshot[r] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ r, v: colSnapshot[r] });
           }
           if (tiles.length > 0) {
             const already = tiles.every((t, i) => t.r === CENTER_ROW + i);
             if (!already) {
-              for (let r = CENTER_ROW; r < ROWS; r++) newGrid[r][c] = 0;
+              for (let r = CENTER_ROW; r < ROWS; r++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = CENTER_ROW;
               for (const { r: from, v } of tiles) {
                 newGrid[dest][c] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
+                if (from !== dest) moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
                 dest++;
               }
             }
           }
         }
-        // Top tiles (rows 0..CENTER_ROW-1): pack downward, stay ≤ CENTER_ROW-1
         {
           const tiles: { r: number; v: number }[] = [];
           for (let r = 0; r < CENTER_ROW; r++) {
-            if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
+            if (colSnapshot[r] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ r, v: colSnapshot[r] });
           }
           if (tiles.length > 0) {
             let topmostBottomTile = ROWS;
             for (let r = CENTER_ROW; r < ROWS; r++) {
-              if (newGrid[r][c] !== 0) {
-                topmostBottomTile = r;
-                break;
-              }
+              if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { topmostBottomTile = r; break; }
             }
             let destEnd = Math.min(CENTER_ROW - 1, topmostBottomTile - 1);
             destEnd = Math.max(destEnd, tiles.length - 1);
             const already = tiles.every((t, i) => t.r === destEnd - tiles.length + 1 + i);
             if (!already) {
-              for (let r = 0; r < CENTER_ROW; r++) newGrid[r][c] = 0;
+              for (let r = 0; r < CENTER_ROW; r++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = destEnd - tiles.length + 1;
               for (const { r: from, v } of tiles) {
                 newGrid[dest][c] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
+                if (from !== dest) moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
                 dest++;
               }
             }
@@ -355,50 +483,43 @@ export function collapseGrid(
         }
       } else {
         // Top claims CENTER_ROW
-        // Top tiles (rows 0..CENTER_ROW): pack downward to CENTER_ROW
         {
           const tiles: { r: number; v: number }[] = [];
           for (let r = 0; r <= CENTER_ROW; r++) {
-            if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
+            if (colSnapshot[r] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ r, v: colSnapshot[r] });
           }
           if (tiles.length > 0) {
             const already = tiles.every((t, i) => t.r === CENTER_ROW + 1 - tiles.length + i);
             if (!already) {
-              for (let r = 0; r <= CENTER_ROW; r++) newGrid[r][c] = 0;
+              for (let r = 0; r <= CENTER_ROW; r++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = CENTER_ROW + 1 - tiles.length;
               for (const { r: from, v } of tiles) {
                 newGrid[dest][c] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
+                if (from !== dest) moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
                 dest++;
               }
             }
           }
         }
-        // Bottom tiles (rows CENTER_ROW+1..ROWS-1): pack upward, stay ≥ CENTER_ROW+1
         {
           const tiles: { r: number; v: number }[] = [];
           for (let r = CENTER_ROW + 1; r < ROWS; r++) {
-            if (colSnapshot[r] !== 0) tiles.push({ r, v: colSnapshot[r] });
+            if (colSnapshot[r] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ r, v: colSnapshot[r] });
           }
           if (tiles.length > 0) {
             let bottommostTopTile = -1;
             for (let r = CENTER_ROW; r >= 0; r--) {
-              if (newGrid[r][c] !== 0) {
-                bottommostTopTile = r;
-                break;
-              }
+              if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { bottommostTopTile = r; break; }
             }
             let destStart = Math.max(CENTER_ROW + 1, bottommostTopTile + 1);
             destStart = Math.min(destStart, ROWS - tiles.length);
             const already = tiles.every((t, i) => t.r === destStart + i);
             if (!already) {
-              for (let r = CENTER_ROW + 1; r < ROWS; r++) newGrid[r][c] = 0;
+              for (let r = CENTER_ROW + 1; r < ROWS; r++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = destStart;
               for (const { r: from, v } of tiles) {
                 newGrid[dest][c] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
+                if (from !== dest) moves.push({ value: v, fromRow: from, fromCol: c, toRow: dest, toCol: c });
                 dest++;
               }
             }
@@ -410,67 +531,41 @@ export function collapseGrid(
     if (moves.length === 0) break;
   }
 
-  // Post-processing: ensure CENTER_ROW is filled in any column that has live tiles
+  // Post-processing: ensure CENTER_ROW is filled in any column that has live non-corner tiles
   for (let c = 0; c < COLS; c++) {
-    const hasLive = newGrid.some((row) => row[c] !== 0);
+    const hasLive = newGrid.some((row, r) => row[c] !== 0 && !isCornerCell(r, c, cfg));
     if (!hasLive) continue;
     if (newGrid[CENTER_ROW][c] !== 0) continue;
 
-    let topmost = -1,
-      bottommost = -1;
+    let topmost = -1, bottommost = -1;
     for (let r = 0; r < ROWS; r++) {
-      if (newGrid[r][c] !== 0) {
+      if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) {
         if (topmost === -1) topmost = r;
         bottommost = r;
       }
     }
-    // All tiles above CENTER_ROW: slide down to fill it
     if (bottommost < CENTER_ROW) {
-      const tiles: number[] = [],
-        fromRows: number[] = [];
+      const tiles: number[] = [], fromRows: number[] = [];
       for (let r = topmost; r <= bottommost; r++) {
-        if (newGrid[r][c] !== 0) {
-          tiles.push(newGrid[r][c]);
-          fromRows.push(r);
-        }
-        newGrid[r][c] = 0;
+        if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { tiles.push(newGrid[r][c]); fromRows.push(r); }
+        if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0;
       }
       let dest = CENTER_ROW + 1 - tiles.length;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[dest][c] = tiles[i];
-        if (fromRows[i] !== dest)
-          gravityPostMoves.push({
-            value: tiles[i],
-            fromRow: fromRows[i],
-            fromCol: c,
-            toRow: dest,
-            toCol: c,
-          });
+        if (fromRows[i] !== dest) gravityPostMoves.push({ value: tiles[i], fromRow: fromRows[i], fromCol: c, toRow: dest, toCol: c });
         dest++;
       }
-    }
-    // All tiles below CENTER_ROW: slide up to fill it
-    else if (topmost > CENTER_ROW) {
-      const tiles: number[] = [],
-        fromRows: number[] = [];
+    } else if (topmost > CENTER_ROW) {
+      const tiles: number[] = [], fromRows: number[] = [];
       for (let r = topmost; r <= bottommost; r++) {
-        if (newGrid[r][c] !== 0) {
-          tiles.push(newGrid[r][c]);
-          fromRows.push(r);
-        }
-        newGrid[r][c] = 0;
+        if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { tiles.push(newGrid[r][c]); fromRows.push(r); }
+        if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0;
       }
       let dest = CENTER_ROW;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[dest][c] = tiles[i];
-        if (fromRows[i] !== dest)
-          gravityPostMoves.push({
-            value: tiles[i],
-            fromRow: fromRows[i],
-            fromCol: c,
-            toRow: dest,
-            toCol: c,
-          });
+        if (fromRows[i] !== dest) gravityPostMoves.push({ value: tiles[i], fromRow: fromRows[i], fromCol: c, toRow: dest, toCol: c });
         dest++;
       }
     }
@@ -479,7 +574,8 @@ export function collapseGrid(
   // Snapshot after gravity, before horizontal — needed for staged animation
   const midGrid = newGrid.map((row) => [...row]);
 
-  // Phase 2: horizontal collapse toward CENTER_COL — lastHorizontalSide claims CENTER_COL
+  // Phase 2: horizontal collapse toward CENTER_COL.
+  // Corner cells are again excluded from movement.
   while (true) {
     const moves: Move[] = [];
     for (let r = 0; r < ROWS; r++) {
@@ -487,50 +583,43 @@ export function collapseGrid(
 
       if (lastHorizontalSide === 'left') {
         // Left claims CENTER_COL
-        // Left tiles (cols 0..CENTER_COL): pack rightward to CENTER_COL
         {
           const tiles: { c: number; v: number }[] = [];
           for (let c = 0; c <= CENTER_COL; c++) {
-            if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
+            if (rowSnapshot[c] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ c, v: rowSnapshot[c] });
           }
           if (tiles.length > 0) {
             const already = tiles.every((t, i) => t.c === CENTER_COL + 1 - tiles.length + i);
             if (!already) {
-              for (let c = 0; c <= CENTER_COL; c++) newGrid[r][c] = 0;
+              for (let c = 0; c <= CENTER_COL; c++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = CENTER_COL + 1 - tiles.length;
               for (const { c: from, v } of tiles) {
                 newGrid[r][dest] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
+                if (from !== dest) moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
                 dest++;
               }
             }
           }
         }
-        // Right tiles (cols CENTER_COL+1..COLS-1): pack leftward, stay ≥ CENTER_COL+1
         {
           const tiles: { c: number; v: number }[] = [];
           for (let c = CENTER_COL + 1; c < COLS; c++) {
-            if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
+            if (rowSnapshot[c] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ c, v: rowSnapshot[c] });
           }
           if (tiles.length > 0) {
             let rightmostLeftTile = -1;
             for (let c = CENTER_COL; c >= 0; c--) {
-              if (newGrid[r][c] !== 0) {
-                rightmostLeftTile = c;
-                break;
-              }
+              if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { rightmostLeftTile = c; break; }
             }
             let destStart = Math.max(CENTER_COL + 1, rightmostLeftTile + 1);
             destStart = Math.min(destStart, COLS - tiles.length);
             const already = tiles.every((t, i) => t.c === destStart + i);
             if (!already) {
-              for (let c = CENTER_COL + 1; c < COLS; c++) newGrid[r][c] = 0;
+              for (let c = CENTER_COL + 1; c < COLS; c++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = destStart;
               for (const { c: from, v } of tiles) {
                 newGrid[r][dest] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
+                if (from !== dest) moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
                 dest++;
               }
             }
@@ -538,50 +627,43 @@ export function collapseGrid(
         }
       } else {
         // Right claims CENTER_COL
-        // Right tiles (cols CENTER_COL..COLS-1): pack leftward to CENTER_COL
         {
           const tiles: { c: number; v: number }[] = [];
           for (let c = CENTER_COL; c < COLS; c++) {
-            if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
+            if (rowSnapshot[c] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ c, v: rowSnapshot[c] });
           }
           if (tiles.length > 0) {
             const already = tiles.every((t, i) => t.c === CENTER_COL + i);
             if (!already) {
-              for (let c = CENTER_COL; c < COLS; c++) newGrid[r][c] = 0;
+              for (let c = CENTER_COL; c < COLS; c++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = CENTER_COL;
               for (const { c: from, v } of tiles) {
                 newGrid[r][dest] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
+                if (from !== dest) moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
                 dest++;
               }
             }
           }
         }
-        // Left tiles (cols 0..CENTER_COL-1): pack rightward, stay ≤ CENTER_COL-1
         {
           const tiles: { c: number; v: number }[] = [];
           for (let c = 0; c < CENTER_COL; c++) {
-            if (rowSnapshot[c] !== 0) tiles.push({ c, v: rowSnapshot[c] });
+            if (rowSnapshot[c] !== 0 && !isCornerCell(r, c, cfg)) tiles.push({ c, v: rowSnapshot[c] });
           }
           if (tiles.length > 0) {
             let leftmostRightTile = COLS;
             for (let c = CENTER_COL; c < COLS; c++) {
-              if (newGrid[r][c] !== 0) {
-                leftmostRightTile = c;
-                break;
-              }
+              if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { leftmostRightTile = c; break; }
             }
             let destEnd = Math.min(CENTER_COL, leftmostRightTile - 1);
             destEnd = Math.max(destEnd, tiles.length - 1);
             const already = tiles.every((t, i) => t.c === destEnd - tiles.length + 1 + i);
             if (!already) {
-              for (let c = 0; c < CENTER_COL; c++) newGrid[r][c] = 0;
+              for (let c = 0; c < CENTER_COL; c++) { if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0; }
               let dest = destEnd - tiles.length + 1;
               for (const { c: from, v } of tiles) {
                 newGrid[r][dest] = v;
-                if (from !== dest)
-                  moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
+                if (from !== dest) moves.push({ value: v, fromRow: r, fromCol: from, toRow: r, toCol: dest });
                 dest++;
               }
             }
@@ -593,67 +675,41 @@ export function collapseGrid(
     if (moves.length === 0) break;
   }
 
-  // Post-processing: ensure CENTER_COL is filled in any row that has live tiles
+  // Post-processing: ensure CENTER_COL is filled in any row that has live non-corner tiles
   for (let r = 0; r < ROWS; r++) {
-    const hasLive = newGrid[r].some((v) => v !== 0);
+    const hasLive = newGrid[r].some((v, c) => v !== 0 && !isCornerCell(r, c, cfg));
     if (!hasLive) continue;
     if (newGrid[r][CENTER_COL] !== 0) continue;
 
-    let leftmost = -1,
-      rightmost = -1;
+    let leftmost = -1, rightmost = -1;
     for (let c = 0; c < COLS; c++) {
-      if (newGrid[r][c] !== 0) {
+      if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) {
         if (leftmost === -1) leftmost = c;
         rightmost = c;
       }
     }
-    // All tiles left of CENTER_COL: slide right to fill it
     if (rightmost < CENTER_COL) {
-      const tiles: number[] = [],
-        fromCols: number[] = [];
+      const tiles: number[] = [], fromCols: number[] = [];
       for (let c = leftmost; c <= rightmost; c++) {
-        if (newGrid[r][c] !== 0) {
-          tiles.push(newGrid[r][c]);
-          fromCols.push(c);
-        }
-        newGrid[r][c] = 0;
+        if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { tiles.push(newGrid[r][c]); fromCols.push(c); }
+        if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0;
       }
       let dest = CENTER_COL + 1 - tiles.length;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[r][dest] = tiles[i];
-        if (fromCols[i] !== dest)
-          horizontalPostMoves.push({
-            value: tiles[i],
-            fromRow: r,
-            fromCol: fromCols[i],
-            toRow: r,
-            toCol: dest,
-          });
+        if (fromCols[i] !== dest) horizontalPostMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
         dest++;
       }
-    }
-    // All tiles right of CENTER_COL: slide left to fill it
-    else if (leftmost > CENTER_COL) {
-      const tiles: number[] = [],
-        fromCols: number[] = [];
+    } else if (leftmost > CENTER_COL) {
+      const tiles: number[] = [], fromCols: number[] = [];
       for (let c = leftmost; c <= rightmost; c++) {
-        if (newGrid[r][c] !== 0) {
-          tiles.push(newGrid[r][c]);
-          fromCols.push(c);
-        }
-        newGrid[r][c] = 0;
+        if (newGrid[r][c] !== 0 && !isCornerCell(r, c, cfg)) { tiles.push(newGrid[r][c]); fromCols.push(c); }
+        if (!isCornerCell(r, c, cfg)) newGrid[r][c] = 0;
       }
       let dest = CENTER_COL;
       for (let i = 0; i < tiles.length; i++) {
         newGrid[r][dest] = tiles[i];
-        if (fromCols[i] !== dest)
-          horizontalPostMoves.push({
-            value: tiles[i],
-            fromRow: r,
-            fromCol: fromCols[i],
-            toRow: r,
-            toCol: dest,
-          });
+        if (fromCols[i] !== dest) horizontalPostMoves.push({ value: tiles[i], fromRow: r, fromCol: fromCols[i], toRow: r, toCol: dest });
         dest++;
       }
     }
