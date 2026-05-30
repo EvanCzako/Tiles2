@@ -483,8 +483,6 @@ const useGameStore = create<GameStore>((set, get) => ({
     // Snapshot row activity BEFORE the push so pending columns stay frozen at
     // pre-swipe height for the entire cascade.
     const frozenPendingRows = buildFrozenSnapshot(s.grid, cfg);
-    // Fully refreshed values (result.pending) are applied only when cascade settles.
-    const intermediatePending = pendingArg.map((v, i) => (blockedIndices.includes(i) ? v : 0));
 
     const payload: PendingCommitPayload = { grid: result.grid, [pendingKey]: result.pending };
     const pc: PendingCommit = {
@@ -564,17 +562,17 @@ const useGameStore = create<GameStore>((set, get) => ({
         pendingCommit: null,
       });
 
-      // Commit the grid + intermediate pending (used slots zeroed); hold refreshed pending for cascade end
-      const { grid: payloadGrid, ...pendingPayload } = commitPayload;
+      // Commit the grid and refreshed pending immediately so strip always shows 5 tiles
+      const { grid: payloadGrid } = commitPayload;
       set({
         grid: payloadGrid,
-        [pKey]: intermediatePending,
+        [pKey]: result.pending,
         lastVerticalSide: newVerticalSide,
         lastHorizontalSide: newHorizontalSide,
       });
       runCollapseLoop(
         payloadGrid,
-        pendingPayload as Partial<InitState>,
+        {},
         get,
         set,
         newVerticalSide,

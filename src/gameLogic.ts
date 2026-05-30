@@ -89,16 +89,16 @@ export function createInitialGrid(cfg: GridCfg = DEFAULT_CFG): Grid {
   return grid;
 }
 
-// Side-panel distribution: heavily favors 1–3, makes 4–7 rare
-// 1: ~40%, 2: ~30%, 3: ~18%, 4: ~7%, 5: ~3%, 6: ~1.5%, 7: ~0.5%
+// Side-panel distribution: moderately favors 1–3, higher values are uncommon
+// 1: ~33%, 2: ~24%, 3: ~16%, 4: ~10%, 5: ~7%, 6: ~6%, 7: ~4%
 function randTileSide(): number {
-  const r = Math.random() * 49;
-  if (r < 10) return 1;
-  if (r < 19) return 2;
-  if (r < 27) return 3;
-  if (r < 34) return 4;
-  if (r < 40) return 5;
-  if (r < 45) return 6;
+  const r = Math.random() * 100;
+  if (r < 33) return 1;
+  if (r < 57) return 2;
+  if (r < 73) return 3;
+  if (r < 83) return 4;
+  if (r < 90) return 5;
+  if (r < 96) return 6;
   return 7;
 }
 
@@ -243,12 +243,8 @@ export function pushFromLeft(grid: Grid, leftPending: number[], cfg: GridCfg = D
     const leftmost = rowLeftmost[i];
 
     if (leftmost === -1) {
-      if (row === CENTER_ROW) {
-        newGrid[row][CENTER_COL] = tileVal;
-        landings.push({ pendingIdx: i, row, col: CENTER_COL, merged: false });
-      } else {
-        landings.push({ pendingIdx: i, flyThrough: true });
-      }
+      newGrid[row][CENTER_COL] = tileVal;
+      landings.push({ pendingIdx: i, row, col: CENTER_COL, merged: false });
     } else if (leftmost > 0) {
       newGrid[row][leftmost - 1] = tileVal;
       landings.push({ pendingIdx: i, row, col: leftmost - 1, merged: false });
@@ -291,12 +287,8 @@ export function pushFromRight(grid: Grid, rightPending: number[], cfg: GridCfg =
     const rightmost = rowRightmost[i];
 
     if (rightmost === -1) {
-      if (row === CENTER_ROW) {
-        newGrid[row][CENTER_COL] = tileVal;
-        landings.push({ pendingIdx: i, row, col: CENTER_COL, merged: false });
-      } else {
-        landings.push({ pendingIdx: i, flyThrough: true });
-      }
+      newGrid[row][CENTER_COL] = tileVal;
+      landings.push({ pendingIdx: i, row, col: CENTER_COL, merged: false });
     } else if (rightmost < COLS - 1) {
       newGrid[row][rightmost + 1] = tileVal;
       landings.push({ pendingIdx: i, row, col: rightmost + 1, merged: false });
@@ -332,12 +324,8 @@ export function pushFromTop(grid: Grid, topPending: number[], cfg: GridCfg = DEF
     }
 
     if (topmost === -1) {
-      if (col === CENTER_COL) {
-        newGrid[CENTER_ROW][col] = tileVal;
-        landings.push({ pendingIdx: i, row: CENTER_ROW, col, merged: false });
-      } else {
-        landings.push({ pendingIdx: i, flyThrough: true });
-      }
+      newGrid[CENTER_ROW][col] = tileVal;
+      landings.push({ pendingIdx: i, row: CENTER_ROW, col, merged: false });
     } else if (topmost > 0) {
       newGrid[topmost - 1][col] = tileVal;
       landings.push({ pendingIdx: i, row: topmost - 1, col, merged: false });
@@ -373,12 +361,8 @@ export function pushFromBottom(grid: Grid, bottomPending: number[], cfg: GridCfg
     }
 
     if (bottommost === -1) {
-      if (col === CENTER_COL) {
-        newGrid[CENTER_ROW][col] = tileVal;
-        landings.push({ pendingIdx: i, row: CENTER_ROW, col, merged: false });
-      } else {
-        landings.push({ pendingIdx: i, flyThrough: true });
-      }
+      newGrid[CENTER_ROW][col] = tileVal;
+      landings.push({ pendingIdx: i, row: CENTER_ROW, col, merged: false });
     } else if (bottommost < ROWS - 1) {
       newGrid[bottommost + 1][col] = tileVal;
       landings.push({ pendingIdx: i, row: bottommost + 1, col, merged: false });

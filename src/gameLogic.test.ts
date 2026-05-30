@@ -150,13 +150,15 @@ describe('Push From Left', () => {
     expect(result.pending[0]).toBeGreaterThan(0);
   });
 
-  test('left push in empty row flies through', () => {
+  test('left push into empty row lands at CENTER_COL', () => {
     const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
 
     const result = pushFromLeft(grid, [1, 0, 0, 0]);
-    expect(result.landings[0].flyThrough).toBe(true);
+    expect(result.landings[0].flyThrough).toBeFalsy();
+    expect(result.landings[0].col).toBe(CENTER_COL);
+    expect(result.grid[PENDING_ROW_START][CENTER_COL]).toBe(1);
   });
 });
 
@@ -175,16 +177,16 @@ describe('Push From Right', () => {
 });
 
 describe('Push From Top', () => {
-  test('top push into empty column flies through (no landing)', () => {
+  test('top push into empty column lands at CENTER_ROW', () => {
     const grid: Grid = Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(0));
 
     const result = pushFromTop(grid, [1, 0, 0, 0, 0]);
     const col = PENDING_COL_START; // column 2
-    // Empty column → fly-through, nothing placed
-    expect(result.grid[CENTER_ROW][col]).toBe(0);
-    expect(result.landings[0]?.flyThrough).toBe(true);
+    expect(result.landings[0]?.flyThrough).toBeFalsy();
+    expect(result.landings[0]?.row).toBe(CENTER_ROW);
+    expect(result.grid[CENTER_ROW][col]).toBe(1);
   });
 
   test('top push lands on existing tile in column', () => {

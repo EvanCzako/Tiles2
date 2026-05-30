@@ -1,12 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { HEADER_H, LANDSCAPE_PANEL_W } from '../constants';
+import { HEADER_H } from '../constants';
 
 export function computeScale(containerW: number, containerH: number): number {
   const vw = window.visualViewport?.width ?? document.documentElement.clientWidth;
   const vh = window.visualViewport?.height ?? document.documentElement.clientHeight;
-  const landscape = vw > vh;
-  const availW = vw - 32 - (landscape ? LANDSCAPE_PANEL_W * 2 : 0);
-  const availH = vh - (landscape ? 32 : HEADER_H);
+  const availW = vw - 32;
+  const availH = vh - HEADER_H;
   return Math.max(0.28, Math.min(1, availW / containerW, availH / containerH));
 }
 

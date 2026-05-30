@@ -24,7 +24,6 @@ export default function Arena({ navigate }: ArenaProps) {
     flyingSource,
     annihilateSet,
     collapsingCells,
-    frozenPendingRows,
     pendingCommit,
     cfg,
     layout,
@@ -36,9 +35,6 @@ export default function Arena({ navigate }: ArenaProps) {
   const { sideOffset, gridPx, gridTopOffset, pendingColTop, topPendingLeft, bottomPendingY } =
     layout;
   const { PENDING_ROW_START, PENDING_COL_START, CENTER_COL, CENTER_ROW } = cfg;
-  const gridEmpty = grid.every((row) => row.every((v) => v === 0));
-  const centerPendingRowIdx = CENTER_ROW - PENDING_ROW_START;
-  const centerPendingColIdx = CENTER_COL - PENDING_COL_START;
 
   return (
     <>
@@ -66,12 +62,8 @@ export default function Arena({ navigate }: ArenaProps) {
       {/* Top pending */}
       <div className="pending-row" style={{ left: sideOffset + topPendingLeft, top: 0 }}>
         {topPending.map((val, i) => {
-          const colActive = frozenPendingRows
-            ? frozenPendingRows.top[i]
-            : grid.some((row) => row[PENDING_COL_START + i] !== 0) ||
-              (gridEmpty && i === centerPendingColIdx);
           const isBlocked = blockedKey === 'topPending' && blockedSet.has(i);
-          const showVal = colActive && !(flyingSource === 'top' && !isBlocked);
+          const showVal = !(flyingSource === 'top' && !isBlocked);
           return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
@@ -79,12 +71,8 @@ export default function Arena({ navigate }: ArenaProps) {
       {/* Left pending */}
       <div className="pending-col" style={{ left: 0, top: pendingColTop }}>
         {leftPending.map((val, i) => {
-          const rowActive = frozenPendingRows
-            ? frozenPendingRows.left[i]
-            : grid[PENDING_ROW_START + i].some((v) => v !== 0) ||
-              (gridEmpty && i === centerPendingRowIdx);
           const isBlocked = blockedKey === 'leftPending' && blockedSet.has(i);
-          const showVal = rowActive && !(flyingSource === 'left' && !isBlocked);
+          const showVal = !(flyingSource === 'left' && !isBlocked);
           return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
@@ -127,12 +115,8 @@ export default function Arena({ navigate }: ArenaProps) {
         style={{ left: sideOffset + gridPx + GAP * 4, top: pendingColTop }}
       >
         {rightPending.map((val, i) => {
-          const rowActive = frozenPendingRows
-            ? frozenPendingRows.right[i]
-            : grid[PENDING_ROW_START + i].some((v) => v !== 0) ||
-              (gridEmpty && i === centerPendingRowIdx);
           const isBlocked = blockedKey === 'rightPending' && blockedSet.has(i);
-          const showVal = rowActive && !(flyingSource === 'right' && !isBlocked);
+          const showVal = !(flyingSource === 'right' && !isBlocked);
           return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
@@ -143,12 +127,8 @@ export default function Arena({ navigate }: ArenaProps) {
         style={{ left: sideOffset + topPendingLeft, top: bottomPendingY }}
       >
         {bottomPending.map((val, i) => {
-          const colActive = frozenPendingRows
-            ? frozenPendingRows.bottom[i]
-            : grid.some((row) => row[PENDING_COL_START + i] !== 0) ||
-              (gridEmpty && i === centerPendingColIdx);
           const isBlocked = blockedKey === 'bottomPending' && blockedSet.has(i);
-          const showVal = colActive && !(flyingSource === 'bottom' && !isBlocked);
+          const showVal = !(flyingSource === 'bottom' && !isBlocked);
           return <Tile key={i} value={showVal ? val : 0} />;
         })}
       </div>
