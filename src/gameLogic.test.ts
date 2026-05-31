@@ -972,6 +972,65 @@ describe('annihilateAdjacent', () => {
     expect(annihilatedCells.length).toBe(0);
     expect(score).toBe(0);
   });
+
+  // ── 4+ board-wide wipe ───────────────────────────────────────────────────
+
+  test('connected group of exactly 4 triggers board-wide wipe of that value', () => {
+    // 4 connected 2s + one isolated 2 elsewhere → all 5 are wiped
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL,     2],
+      [CENTER_ROW, CENTER_COL + 1, 2],
+      [CENTER_ROW, CENTER_COL - 1, 2],
+      [CENTER_ROW + 1, CENTER_COL, 2],
+      [CENTER_ROW - 1, CENTER_COL + 2, 2], // isolated, not connected to the group
+    ]);
+    const { annihilatedCells, score } = annihilateAdjacent(grid);
+    expect(annihilatedCells.length).toBe(5);
+    expect(score).toBe(5 * 2);
+  });
+
+  test('two separate groups of 2 of the same value do NOT trigger board-wide wipe', () => {
+    // two disconnected pairs of value 3 — each pair annihilates as a small group
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL,     3],
+      [CENTER_ROW, CENTER_COL + 1, 3],
+      [CENTER_ROW + 2, CENTER_COL, 3],
+      [CENTER_ROW + 2, CENTER_COL + 1, 3],
+      [CENTER_ROW - 1, CENTER_COL - 1, 3], // isolated — NOT wiped
+    ]);
+    const { annihilatedCells, score } = annihilateAdjacent(grid);
+    // only the two pairs (4 cells) annihilate; the isolated tile survives
+    expect(annihilatedCells.length).toBe(4);
+    expect(score).toBe(4 * 3);
+  });
+
+  test('board-wide wipe scores every matching tile, not just the triggering group', () => {
+    // 4 connected 5s in a row, plus two isolated 5s
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL - 1, 5],
+      [CENTER_ROW, CENTER_COL,     5],
+      [CENTER_ROW, CENTER_COL + 1, 5],
+      [CENTER_ROW, CENTER_COL + 2, 5],
+      [CENTER_ROW - 2, CENTER_COL + 2, 5],
+      [CENTER_ROW + 2, CENTER_COL - 2, 5],
+    ]);
+    const { annihilatedCells, score } = annihilateAdjacent(grid);
+    expect(annihilatedCells.length).toBe(6);
+    expect(score).toBe(6 * 5);
+  });
+
+  test('board-wide wipe does not affect tiles of other values', () => {
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL,     4],
+      [CENTER_ROW, CENTER_COL + 1, 4],
+      [CENTER_ROW, CENTER_COL + 2, 4],
+      [CENTER_ROW, CENTER_COL - 1, 4],
+      [CENTER_ROW + 1, CENTER_COL, 7], // different value — should survive
+    ]);
+    const { grid: g, annihilatedCells } = annihilateAdjacent(grid);
+    expect(annihilatedCells.length).toBe(4);
+    expect(g[CENTER_ROW + 1][CENTER_COL]).toBe(7);
+  });
 });
 
 // ── checkGameOver ─────────────────────────────────────────────────────────────

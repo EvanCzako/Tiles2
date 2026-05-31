@@ -1,11 +1,16 @@
 import type { Grid, GridCfg, AnnihilateResult } from '../types';
 import { DEFAULT_CFG } from './config';
 
+// Groups of 2–3: annihilate just that group.
+// Groups of 4+: annihilate every tile of that value anywhere on the board (including corners).
 export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): AnnihilateResult {
   const { ROWS, COLS } = cfg;
   const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-  const toAnnihilate: [number, number][] = [];
-  let score = 0;
+
+  // values whose connected group hit 4+ → board-wide sweep
+  const boardWipeValues = new Set<number>();
+  // small-group cells (2–3) keyed by value, to be excluded if value later triggers board-wipe
+  const smallGroupsByValue = new Map<number, [number, number][]>();
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -31,10 +36,33 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
         }
       }
 
-      if (group.length >= 2) {
-        toAnnihilate.push(...group);
-        score += group.length * value;
+      if (group.length >= 4) {
+        boardWipeValues.add(value);
+      } else if (group.length >= 2) {
+        const prev = smallGroupsByValue.get(value) ?? [];
+        smallGroupsByValue.set(value, [...prev, ...group]);
       }
+    }
+  }
+
+  const toAnnihilate: [number, number][] = [];
+  let score = 0;
+
+  // Board-wide sweep for values with a 4+ connected group
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (grid[r][c] !== 0 && boardWipeValues.has(grid[r][c])) {
+        toAnnihilate.push([r, c]);
+        score += grid[r][c];
+      }
+    }
+  }
+
+  // Small groups whose value wasn't upgraded to a board-wide wipe
+  for (const [value, cells] of smallGroupsByValue) {
+    if (!boardWipeValues.has(value)) {
+      toAnnihilate.push(...cells);
+      score += cells.length * value;
     }
   }
 
