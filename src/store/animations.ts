@@ -28,7 +28,7 @@ export function endTurn(
   set: ZustandSet
 ): void {
   const curCfg = get().cfg;
-  const { grid: settledGrid, midGrid, verticalMoves, horizontalMoves } = settleCorners(grid, curCfg);
+  const { grid: settledGrid, movedGrid, midGrid, verticalMoves, horizontalMoves } = settleCorners(grid, curCfg);
 
   const finalize = (finalGrid: Grid) => {
     set({
@@ -54,16 +54,23 @@ export function endTurn(
     }
   };
 
-  const afterCornerSettle = (finalGrid: Grid) => {
-    const { annihilatedCells } = annihilateAdjacent(finalGrid, curCfg);
-    if (annihilatedCells.length === 0) { finalize(finalGrid); return; }
-    set({ grid: finalGrid });
-    const s = get();
-    runCollapseLoop(finalGrid, pendingPayload, get, set, s.lastVerticalSide, s.lastHorizontalSide, 1, false);
+  // Phase: all slides done — first commit the slide result (empty slots visible),
+  // then in the next render frame reveal the newly generated refill tiles.
+  const afterCornerSettle = () => {
+    set({ flyingTiles: [], collapsingCells: new Set(), grid: movedGrid });
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        set({ grid: settledGrid });
+        const { annihilatedCells } = annihilateAdjacent(settledGrid, curCfg);
+        if (annihilatedCells.length === 0) { finalize(settledGrid); return; }
+        const s = get();
+        runCollapseLoop(settledGrid, pendingPayload, get, set, s.lastVerticalSide, s.lastHorizontalSide, 1, false);
+      })
+    );
   };
 
   const runPhase2 = () => {
-    if (horizontalMoves.length === 0) { afterCornerSettle(settledGrid); return; }
+    if (horizontalMoves.length === 0) { afterCornerSettle(); return; }
     const curLayout = get().layout;
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
@@ -77,7 +84,7 @@ export function endTurn(
           })),
           collapsingCells: new Set(horizontalMoves.map((m) => `${m.fromRow},${m.fromCol}`)),
         });
-        setTimeout(() => afterCornerSettle(settledGrid), ANIM_MS + 30);
+        setTimeout(() => afterCornerSettle(), ANIM_MS + 30);
       })
     );
   };
@@ -119,9 +126,14 @@ export function runCollapseLoop(
   const { grid: collapsedGrid, midGrid, gravityMoves, horizontalMoves } =
     collapseGrid(grid, cfg, lastVerticalSide, lastHorizontalSide);
 
+  const BOARD_WIPE_STAGGER_MS = 150;
+
   const afterCollapse = (settled: Grid) => {
     const curCfg = get().cfg;
-    const { annihilatedCells, grid: annGrid, score: annScore } = annihilateAdjacent(settled, curCfg);
+    const {
+      annihilatedCells, grid: annGrid, score: annScore,
+      boardWipeGroupCells, boardWipeSpreadCells, regularCells,
+    } = annihilateAdjacent(settled, curCfg);
 
     if (annihilatedCells.length === 0) {
       endTurn(settled, pendingPayload, get, set);
@@ -129,19 +141,42 @@ export function runCollapseLoop(
     }
 
     const nextCombo_ = nextCombo(combo);
-    set({
-      score: get().score + annScore * Math.min(combo, MAX_COMBO),
-      combo: Math.min(combo, MAX_COMBO),
-      annihilateSet: new Set(annihilatedCells.map(([r, c]) => `${r},${c}`)),
-    });
-    setTimeout(() => {
-      set({ grid: annGrid, annihilateSet: new Set() });
+    const proceed = () => {
+      set({ grid: annGrid, annihilateSet: new Set(), boardWipeFlashSet: new Set() });
       if (nextCombo_ === NUKE_COMBO && !nukeUsed) {
         nukeCenterAndSettle(annGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide);
       } else {
         runCollapseLoop(annGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide, nextCombo_, nukeUsed);
       }
-    }, FLASH_MS);
+    };
+
+    set({
+      score: get().score + annScore * Math.min(combo, MAX_COMBO),
+      combo: Math.min(combo, MAX_COMBO),
+    });
+
+    if (boardWipeGroupCells.length > 0) {
+      // Phase 1: group cells flash immediately in their tile color
+      set({
+        boardWipeFlashSet: new Set(boardWipeGroupCells.map(([r, c]) => `${r},${c}`)),
+        ...(regularCells.length > 0 && { annihilateSet: new Set(regularCells.map(([r, c]) => `${r},${c}`)) }),
+      });
+      // Phase 2: spread cells join 150 ms later
+      setTimeout(() => {
+        if (boardWipeSpreadCells.length > 0) {
+          set({
+            boardWipeFlashSet: new Set([
+              ...boardWipeGroupCells.map(([r, c]) => `${r},${c}`),
+              ...boardWipeSpreadCells.map(([r, c]) => `${r},${c}`),
+            ]),
+          });
+        }
+        setTimeout(proceed, FLASH_MS);
+      }, BOARD_WIPE_STAGGER_MS);
+    } else {
+      set({ annihilateSet: new Set(annihilatedCells.map(([r, c]) => `${r},${c}`)) });
+      setTimeout(proceed, FLASH_MS);
+    }
   };
 
   const doHorizontalPhase = () => {
@@ -220,14 +255,16 @@ export function nukeCenterAndSettle(
       set({
         score: get().score + centerScore * MAX_COMBO,
         combo: MAX_COMBO,
-        annihilateSet: flashCells,
+        nukeFlashSet: flashCells,
+        nukeActive: true,
       });
       setTimeout(() => {
         const nukedGrid = grid.map((row) => [...row]);
         for (const [r, c] of clearCells) nukedGrid[r][c] = 0;
-        set({ grid: nukedGrid, annihilateSet: new Set() });
+        set({ grid: nukedGrid, nukeFlashSet: new Set() });
         runCollapseLoop(nukedGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide, MAX_COMBO, true);
       }, FLASH_MS);
+      setTimeout(() => set({ nukeActive: false }), 600);
     })
   );
 }

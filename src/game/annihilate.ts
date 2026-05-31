@@ -7,9 +7,10 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
   const { ROWS, COLS } = cfg;
   const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
 
-  // values whose connected group hit 4+ → board-wide sweep
   const boardWipeValues = new Set<number>();
-  // small-group cells (2–3) keyed by value, to be excluded if value later triggers board-wipe
+  // "r,c" keys of the triggering 4+ group cells, for fast spread/group distinction
+  const boardWipeGroupKeySet = new Set<string>();
+  const boardWipeGroupCells: [number, number][] = [];
   const smallGroupsByValue = new Map<number, [number, number][]>();
 
   for (let r = 0; r < ROWS; r++) {
@@ -36,8 +37,12 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
         }
       }
 
-      if (group.length >= 4) {
+      if (group.length >= 3) {
         boardWipeValues.add(value);
+        for (const [gr, gc] of group) {
+          boardWipeGroupKeySet.add(`${gr},${gc}`);
+          boardWipeGroupCells.push([gr, gc]);
+        }
       } else if (group.length >= 2) {
         const prev = smallGroupsByValue.get(value) ?? [];
         smallGroupsByValue.set(value, [...prev, ...group]);
@@ -46,14 +51,21 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
   }
 
   const toAnnihilate: [number, number][] = [];
+  const boardWipeSpreadCells: [number, number][] = [];
+  const regularCells: [number, number][] = [];
   let score = 0;
 
   // Board-wide sweep for values with a 4+ connected group
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (grid[r][c] !== 0 && boardWipeValues.has(grid[r][c])) {
-        toAnnihilate.push([r, c]);
-        score += grid[r][c];
+  if (boardWipeValues.size > 0) {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c] !== 0 && boardWipeValues.has(grid[r][c])) {
+          toAnnihilate.push([r, c]);
+          score += grid[r][c];
+          if (!boardWipeGroupKeySet.has(`${r},${c}`)) {
+            boardWipeSpreadCells.push([r, c]);
+          }
+        }
       }
     }
   }
@@ -62,13 +74,16 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
   for (const [value, cells] of smallGroupsByValue) {
     if (!boardWipeValues.has(value)) {
       toAnnihilate.push(...cells);
+      regularCells.push(...cells);
       score += cells.length * value;
     }
   }
 
-  if (toAnnihilate.length === 0) return { grid, annihilatedCells: [], score: 0 };
+  if (toAnnihilate.length === 0) {
+    return { grid, annihilatedCells: [], score: 0, boardWipeGroupCells: [], boardWipeSpreadCells: [], regularCells: [] };
+  }
 
   const newGrid = grid.map((row) => [...row]);
   for (const [r, c] of toAnnihilate) newGrid[r][c] = 0;
-  return { grid: newGrid, annihilatedCells: toAnnihilate, score };
+  return { grid: newGrid, annihilatedCells: toAnnihilate, score, boardWipeGroupCells, boardWipeSpreadCells, regularCells };
 }

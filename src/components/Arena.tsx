@@ -23,6 +23,9 @@ export default function Arena({ navigate }: ArenaProps) {
     flyingTiles,
     flyingSource,
     annihilateSet,
+    boardWipeFlashSet,
+    nukeFlashSet,
+    nukeActive,
     collapsingCells,
     pendingCommit,
     cfg,
@@ -89,6 +92,7 @@ export default function Arena({ navigate }: ArenaProps) {
       >
         {grid.map((row, r) =>
           row.map((val, c) => {
+            const key = `${r},${c}`;
             const isCorner =
               (r < PENDING_ROW_START || r >= PENDING_ROW_START + cfg.PENDING_SIZE) &&
               (c < PENDING_COL_START || c >= PENDING_COL_START + cfg.PENDING_SIZE);
@@ -99,8 +103,10 @@ export default function Arena({ navigate }: ArenaProps) {
                 style={{ width: CELL, height: CELL }}
               >
                 <Tile
-                  value={collapsingCells.has(`${r},${c}`) ? 0 : val}
-                  flashAnnihilate={annihilateSet.has(`${r},${c}`)}
+                  value={collapsingCells.has(key) ? 0 : val}
+                  flashAnnihilate={annihilateSet.has(key)}
+                  flashBoardWipe={boardWipeFlashSet.has(key)}
+                  flashNuke={nukeFlashSet.has(key)}
                   centerColumn={c === CENTER_COL || r === CENTER_ROW}
                 />
               </div>

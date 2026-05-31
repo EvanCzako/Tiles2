@@ -29,7 +29,7 @@ export function isCornerCell(r: number, c: number, cfg: GridCfg): boolean {
 export function settleCorners(
   grid: Grid,
   cfg: GridCfg
-): { grid: Grid; midGrid: Grid; verticalMoves: Move[]; horizontalMoves: Move[] } {
+): { grid: Grid; movedGrid: Grid; midGrid: Grid; verticalMoves: Move[]; horizontalMoves: Move[] } {
   const midGrid = grid.map((row) => [...row]);
   const verticalMoves: Move[] = [];
 
@@ -62,6 +62,9 @@ export function settleCorners(
     }
   }
 
+  // Snapshot after slides, before refill — used to stage the refill as a separate animation frame
+  const movedGrid = settledGrid.map((row) => [...row]);
+
   // Refill remaining empty slots inner-to-outer so adjacency exclusion sees placed neighbours
   for (const { rows, cols } of getCornerBlockSpecs(cfg)) {
     for (const r of rows) {
@@ -82,5 +85,5 @@ export function settleCorners(
     }
   }
 
-  return { grid: settledGrid, midGrid, verticalMoves, horizontalMoves };
+  return { grid: settledGrid, movedGrid, midGrid, verticalMoves, horizontalMoves };
 }

@@ -60,6 +60,10 @@ export interface AnnihilateResult {
   grid: Grid;
   annihilatedCells: [number, number][];
   score: number;
+  // board-wide wipe breakdown (non-empty only when a 4+ connected group fired)
+  boardWipeGroupCells: [number, number][];   // the triggering 4+ connected group
+  boardWipeSpreadCells: [number, number][];  // all other matching tiles swept board-wide
+  regularCells: [number, number][];          // 2–3 group cells (no board-wipe)
 }
 
 export interface NukeCrossResult {
@@ -126,6 +130,9 @@ export interface GameState {
   flyingTiles: FlyingTileDescriptor[];
   flyingSource: FlyingSource;
   annihilateSet: Set<string>;
+  boardWipeFlashSet: Set<string>;
+  nukeFlashSet: Set<string>;
+  nukeActive: boolean;
   collapsingCells: Set<string>;
   pendingCommit: PendingCommit | null;
   frozenPendingRows: FrozenPendingRows | null;

@@ -38,6 +38,9 @@ export interface InitState {
   flyingTiles: FlyingTileDescriptor[];
   flyingSource: FlyingSource;
   annihilateSet: Set<string>;
+  boardWipeFlashSet: Set<string>;
+  nukeFlashSet: Set<string>;
+  nukeActive: boolean;
   collapsingCells: Set<string>;
   pendingCommit: PendingCommit | null;
   frozenPendingRows: FrozenPendingRows | null;
@@ -65,6 +68,9 @@ export function initState(mode: GridMode = '9x9'): InitState {
     flyingTiles: [],
     flyingSource: null,
     annihilateSet: new Set(),
+    boardWipeFlashSet: new Set(),
+    nukeFlashSet: new Set(),
+    nukeActive: false,
     collapsingCells: new Set(),
     pendingCommit: null,
     frozenPendingRows: null,

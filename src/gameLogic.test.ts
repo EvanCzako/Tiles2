@@ -975,18 +975,17 @@ describe('annihilateAdjacent', () => {
 
   // ── 4+ board-wide wipe ───────────────────────────────────────────────────
 
-  test('connected group of exactly 4 triggers board-wide wipe of that value', () => {
-    // 4 connected 2s + one isolated 2 elsewhere → all 5 are wiped
+  test('connected group of exactly 3 triggers board-wide wipe of that value', () => {
+    // exactly 3 connected 2s (L-shape) + one isolated 2 elsewhere → all 4 are wiped
     const grid = makeGrid([
       [CENTER_ROW, CENTER_COL,     2],
       [CENTER_ROW, CENTER_COL + 1, 2],
-      [CENTER_ROW, CENTER_COL - 1, 2],
       [CENTER_ROW + 1, CENTER_COL, 2],
       [CENTER_ROW - 1, CENTER_COL + 2, 2], // isolated, not connected to the group
     ]);
     const { annihilatedCells, score } = annihilateAdjacent(grid);
-    expect(annihilatedCells.length).toBe(5);
-    expect(score).toBe(5 * 2);
+    expect(annihilatedCells.length).toBe(4);
+    expect(score).toBe(4 * 2);
   });
 
   test('two separate groups of 2 of the same value do NOT trigger board-wide wipe', () => {
@@ -1023,12 +1022,11 @@ describe('annihilateAdjacent', () => {
     const grid = makeGrid([
       [CENTER_ROW, CENTER_COL,     4],
       [CENTER_ROW, CENTER_COL + 1, 4],
-      [CENTER_ROW, CENTER_COL + 2, 4],
-      [CENTER_ROW, CENTER_COL - 1, 4],
+      [CENTER_ROW, CENTER_COL + 2, 4], // group of 3 → board-wide wipe
       [CENTER_ROW + 1, CENTER_COL, 7], // different value — should survive
     ]);
     const { grid: g, annihilatedCells } = annihilateAdjacent(grid);
-    expect(annihilatedCells.length).toBe(4);
+    expect(annihilatedCells.length).toBe(3);
     expect(g[CENTER_ROW + 1][CENTER_COL]).toBe(7);
   });
 });
