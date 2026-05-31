@@ -159,6 +159,33 @@ High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'
 ## Screen Navigation (`src/App.tsx`)
 Simple `useState('menu')` router. Screens: `'menu'` → `'game'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
 
+## Source Layout
+```
+src/
+  game/           ← pure game logic (no React, no browser APIs)
+    config.ts     — GRID_CONFIGS, DEFAULT_CFG, top-level ROWS/COLS constants
+    tiles.ts      — randTileSide*, getTileColor, createInitialPending
+    grid.ts       — createInitialGrid
+    corners.ts    — isCornerCell, getCornerBlockSpecs, settleCorners
+    push.ts       — pushFromLeft/Right/Top/Bottom, checkGameOver
+    collapse.ts   — collapseGrid (+ private consolidateCrossPhase)
+    annihilate.ts — annihilateAdjacent
+    combo.ts      — MAX_COMBO, NUKE_COMBO, nextCombo, nukeCrossScore
+    index.ts      — re-exports all of the above
+  store/          ← Zustand store, split by concern
+    persistence.ts — localStorage high score helpers
+    init.ts       — initState, buildFrozenSnapshot, getAvailableDirections
+    animations.ts — endTurn, runCollapseLoop, nukeCenterAndSettle
+    index.ts      — useGameStore (triggerPush + store creation)
+  components/     ← React components (unchanged)
+  hooks/          ← useInput, useScale (unchanged)
+  gameLogic.ts    — barrel re-export of src/game/index (backward compat)
+  store.ts        — barrel re-export of src/store/index (backward compat)
+  types.ts        — all shared TypeScript types
+  constants.ts    — CELL, GAP, animation timings
+  layout.ts       — getLayout, cellPos, *PendingPos helpers
+```
+
 ## Components
 | File | Role |
 |------|------|
