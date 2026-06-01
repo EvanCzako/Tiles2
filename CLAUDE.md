@@ -65,12 +65,25 @@ Corner phases are animated sequentially (same `ANIM_MS + 30` timing as main coll
 
 Corner cells are **excluded from all main-grid collapse logic** (`collapseGrid` and post-processing skips any cell where `isCornerCell` is true).
 
-`settleCorners` returns `{ grid, midGrid, verticalMoves, horizontalMoves }`.
+`settleCorners` returns `{ grid, movedGrid, midGrid, verticalMoves, horizontalMoves }`.
+- `midGrid` — after vertical slides only (used to stage phase 1 animation commit)
+- `movedGrid` — after both slide phases but **before** refill (committed first so new tiles never appear during animation)
+- `grid` — fully settled including refill (used for cascade check and final state)
 
 ---
 
 ## Scoring & Annihilation
-After every push, any group of **2 or more orthogonally-adjacent tiles with the same value** is annihilated (removed). Score = `(count × value) × combo`.
+Two-tier system checked after every push and collapse wave:
+
+- **Group of 2** — only those 2 connected tiles are annihilated. Score = `2 × value`.
+- **Group of 3+** — every tile of that value **anywhere on the board** (including corner 2×2 regions) is annihilated. Score = `total_count × value`.
+
+Multiple values can trigger in the same wave independently. Score per wave is multiplied by `combo`.
+
+`annihilateAdjacent` returns `{ grid, annihilatedCells, score, boardWipeGroupCells, boardWipeSpreadCells, regularCells }`:
+- `boardWipeGroupCells` — the triggering 3+ connected group (flashes first)
+- `boardWipeSpreadCells` — all other matching tiles swept board-wide (flash 150 ms later)
+- `regularCells` — 2-tile group cells (no board-wide wipe)
 
 ---
 
@@ -104,7 +117,7 @@ NUKE_COMBO = 6   // sentinel that triggers the nuke instead of recursing
 - Combo starts at 1 per turn and increments each cascade wave via `nextCombo(combo)`, capped at NUKE_COMBO.
 - Score per wave: `annScore × min(combo, MAX_COMBO)`.
 - **Nuke:** when `nextCombo` would reach `NUKE_COMBO` (i.e. the 5th consecutive cascade), `nukeCenterAndSettle` fires instead of another collapse loop:
-  1. Gold-flash the full center cross (entire row CENTER_ROW + entire col CENTER_COL).
+  1. Red-orange flash (`nukeFlashSet`) the full center cross (entire row CENTER_ROW + entire col CENTER_COL).
   2. Clear only the non-empty cross cells and score them × MAX_COMBO (5).
   3. Run one final collapse loop with `nukeUsed=true` (prevents a second nuke in the same turn).
 
@@ -116,15 +129,18 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 **Key constants:**
 - `CELL = 52` px, `GAP = 4` px
 - `ANIM_MS = 220` ms (fly/collapse transition)
-- `FLASH_MS = 320` ms (annihilation/nuke gold flash hold)
+- `FLASH_MS = 320` ms (annihilation/nuke flash hold)
 - `AUTO_MOVE_MS = 500` ms (delay before auto-move when only 1 direction available)
-- `HEADER_H = 52` px (compact top bar height used by `useScale` to compute available board space)
+- `HEADER_H = 84` px (header 52 px + combo strip 32 px; used by `useScale` to compute available board space)
 
 **FlyingTile** (`src/components/FlyingTile.tsx`): absolutely-positioned div, starts at `from` position via CSS `translate`, transitions to `(0,0)` (i.e. `to`). Uses double-rAF to trigger the CSS transition after mount.
 
 **Collapse animation** is two-stage: gravity moves animate first, then horizontal moves, each separated by `ANIM_MS + 30` ms. Corner settle uses the same two-stage pattern.
 
-**Flash:** `annihilateSet` in store holds `"r,c"` strings → Tile renders `tile--flash-annihilate` CSS class (gold).
+**Flash types** (all hold for `FLASH_MS` then grid is zeroed):
+- `annihilateSet` → `tile--flash-annihilate` — gold/white overlay (regular 2-tile annihilation)
+- `boardWipeFlashSet` → `tile--flash-boardwipe` — value-colored brightness pop (3+ board-wide wipe); group cells flash first, spread cells join 150 ms later
+- `nukeFlashSet` → `tile--flash-nuke` — red-orange overlay (nuke cross clear)
 
 **`collapsingCells`:** set of cells hidden during a collapse animation (their flying counterpart is visible instead).
 
@@ -138,7 +154,10 @@ score / highScore / combo
 gameOver / animating
 flyingTiles         // FlyingTile descriptor array
 flyingSource        // 'left'|'right'|'top'|'bottom'|null — which side is currently flying
-annihilateSet       // Set<"r,c"> — cells currently gold-flashing
+annihilateSet       // Set<"r,c"> — cells gold-flashing (regular 2-tile annihilation)
+boardWipeFlashSet   // Set<"r,c"> — cells value-colored flashing (3+ board-wide wipe)
+nukeFlashSet        // Set<"r,c"> — cells red-orange flashing (nuke cross)
+nukeActive          // boolean — true while nuke flash is live (reserved for future use)
 collapsingCells     // Set<"r,c"> — cells hidden during collapse animation
 pendingCommit       // { payload, blockedIndices, pendingKey } — held during push animation
 frozenPendingRows   // snapshot of per-row/col activity at push time (used internally, not read by Arena for visibility)
@@ -158,6 +177,9 @@ High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'
 
 ## Screen Navigation (`src/App.tsx`)
 Simple `useState('menu')` router. Screens: `'menu'` → `'game'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
+
+## Combo Strip
+A 32 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift). When `combo >= 2` it renders an animated `×N` badge (CSS class `combo-strip-badge`) using the combo color ramp (grey→yellow→orange→red-orange→red). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
 
 ## Source Layout
 ```
@@ -189,11 +211,11 @@ src/
 ## Components
 | File | Role |
 |------|------|
-| `Arena.tsx` | Grid + 4 pending strips + flying tiles; pending strips always show all tiles (visibility only suppressed for the currently-flying strip) |
-| `Tile.tsx` | Single tile div; props: `value`, `size`, `flashing`, `flashAnnihilate`, `centerColumn` |
+| `Arena.tsx` | Grid + 4 pending strips + flying tiles; reads `annihilateSet`, `boardWipeFlashSet`, `nukeFlashSet` to drive flash props on Tile |
+| `Tile.tsx` | Single tile div; props: `value`, `size`, `flashing`, `flashAnnihilate`, `flashBoardWipe`, `flashNuke`, `centerColumn` |
 | `FlyingTile.tsx` | Animated flying tile (CSS transition via double-rAF) |
-| `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + arena |
-| `GameHeader.tsx` | Score / highScore / combo display; combo color ramp (grey→yellow→orange→red-orange→red); title is clickable (navigates to menu via `onMenu` prop) |
+| `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + combo strip + arena |
+| `GameHeader.tsx` | Score / highScore display; title is clickable (navigates to menu via `onMenu` prop) |
 | `GameOverOverlay.tsx` | Overlay with Play Again + Main Menu |
 | `MenuScreen.tsx` | Title "UNTILED" + Play / How to Play / Settings buttons |
 | `HowToPlayScreen.tsx` | Static rule cards |
@@ -213,7 +235,7 @@ src/
 
 ## Testing
 `src/gameLogic.test.ts` — pure logic tests (no React). Run with `npm test`.  
-Covers: constants, grid init, push from all 4 sides, gravity/horizontal collapse, annihilation, game-over detection, nuke cross score, combo math, and regression tests for the `consolidateCrossPhase` animation merge bug (same-value tiles in the same pass must never be chained).
+Covers: constants, grid init, push from all 4 sides, gravity/horizontal collapse, annihilation (including board-wide wipe: 3+ connected group triggers full-value sweep; 2-tile groups remain local), game-over detection, nuke cross score, combo math, and regression tests for the `consolidateCrossPhase` animation merge bug (same-value tiles in the same pass must never be chained).
 
 ---
 
