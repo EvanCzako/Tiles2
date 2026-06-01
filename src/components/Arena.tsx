@@ -25,7 +25,6 @@ export default function Arena({ navigate }: ArenaProps) {
     annihilateSet,
     boardWipeFlashSet,
     nukeFlashSet,
-    nukeActive,
     collapsingCells,
     pendingCommit,
     cfg,

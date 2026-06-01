@@ -5,6 +5,8 @@ import GameHeader from './GameHeader';
 import Arena from './Arena';
 import type { Screen } from '../types';
 
+const COMBO_COLORS = ['#8888aa', '#ffcc00', '#ff8822', '#ff4422', '#dd1144'];
+
 interface GameScreenProps {
   navigate: (screen: Screen) => void;
 }
@@ -16,9 +18,18 @@ export default function GameScreen({ navigate }: GameScreenProps) {
   const scale = useScale(CONTAINER_W, CONTAINER_H);
   useInput(triggerPush);
 
+  const comboColor = COMBO_COLORS[Math.min(combo - 1, 4)];
+
   return (
     <div className="app">
-      <GameHeader score={score} highScore={highScore} combo={combo} onMenu={() => navigate('menu')} />
+      <GameHeader score={score} highScore={highScore} onMenu={() => navigate('menu')} />
+      <div className="combo-strip">
+        {combo >= 2 && (
+          <div key={combo} className="combo-strip-badge" style={{ color: comboColor }}>
+            ×{combo}
+          </div>
+        )}
+      </div>
       <div className="arena-container">
         <div
           style={{

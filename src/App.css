@@ -18,6 +18,32 @@ body {
   overflow: visible;
 }
 
+.combo-strip {
+  flex-shrink: 0;
+  height: 32px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes combo-strip-pop {
+  0%   { transform: scale(0.55); opacity: 0; }
+  45%  { transform: scale(1.25); opacity: 1; }
+  70%  { transform: scale(0.93); }
+  100% { transform: scale(1); }
+}
+
+.combo-strip-badge {
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 2px 14px;
+  border-radius: 12px;
+  animation: combo-strip-pop 220ms ease-out forwards;
+}
+
 .arena-container {
   flex: 1;
   min-height: 0;
@@ -300,6 +326,7 @@ body {
   animation: flash-annihilate-overlay 320ms ease-in forwards;
   pointer-events: none;
 }
+
 
 /* ── Board-wide wipe flash (value-colored, no white overlay) ───────────────── */
 
