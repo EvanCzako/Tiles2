@@ -19,6 +19,9 @@ import {
   MAX_COMBO,
   NUKE_COMBO,
   nukeCrossScore,
+  BOMB_FLAG,
+  isBomb,
+  baseValue,
 } from './gameLogic.js';
 import type { Grid, GridCfg } from './types.js';
 
@@ -1028,6 +1031,79 @@ describe('annihilateAdjacent', () => {
     const { grid: g, annihilatedCells } = annihilateAdjacent(grid);
     expect(annihilatedCells.length).toBe(3);
     expect(g[CENTER_ROW + 1][CENTER_COL]).toBe(7);
+  });
+});
+
+// ── Bomb tiles ────────────────────────────────────────────────────────────────
+
+describe('bomb tiles', () => {
+  const bomb = (v: number) => v + BOMB_FLAG;
+
+  test('encode/decode helpers', () => {
+    expect(isBomb(bomb(3))).toBe(true);
+    expect(isBomb(3)).toBe(false);
+    expect(isBomb(0)).toBe(false);
+    expect(baseValue(bomb(7))).toBe(7);
+    expect(baseValue(7)).toBe(7);
+    expect(baseValue(0)).toBe(0);
+  });
+
+  test('a bomb matches a plain tile of the same base value', () => {
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL, bomb(3)],
+      [CENTER_ROW, CENTER_COL + 1, 3],
+    ]);
+    const { annihilatedCells } = annihilateAdjacent(grid);
+    // the pair annihilates; nothing adjacent to blast
+    expect(annihilatedCells.length).toBe(2);
+  });
+
+  test('annihilated bomb detonates surrounding 3×3 (incl. unrelated tiles)', () => {
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL, bomb(3)],
+      [CENTER_ROW, CENTER_COL + 1, 3], // triggers the match
+      [CENTER_ROW - 1, CENTER_COL - 1, 5], // diagonal neighbour of bomb → blasted
+      [CENTER_ROW + 1, CENTER_COL, 6],     // below bomb → blasted
+    ]);
+    const { grid: g, annihilatedCells, bombBlastCells } = annihilateAdjacent(grid);
+    expect(g[CENTER_ROW - 1][CENTER_COL - 1]).toBe(0);
+    expect(g[CENTER_ROW + 1][CENTER_COL]).toBe(0);
+    // matched pair (2) + two blasted neighbours
+    expect(annihilatedCells.length).toBe(4);
+    expect(bombBlastCells.length).toBe(2);
+  });
+
+  test('blast score includes base value of exploded tiles', () => {
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL, bomb(2)],
+      [CENTER_ROW, CENTER_COL + 1, 2],     // match: 2 + 2 = 4
+      [CENTER_ROW + 1, CENTER_COL + 1, 7], // diagonal to bomb → blasted (+7)
+      [CENTER_ROW - 1, CENTER_COL, 5],     // above bomb → blasted (+5)
+    ]);
+    const { score } = annihilateAdjacent(grid);
+    // matched pair 2+2=4, plus blasted 7 and 5
+    expect(score).toBe(4 + 7 + 5);
+  });
+
+  test('bomb blast chains into another bomb', () => {
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL, bomb(3)],
+      [CENTER_ROW, CENTER_COL + 1, 3],     // match triggers first bomb
+      [CENTER_ROW + 1, CENTER_COL + 1, bomb(6)], // in first blast → chains
+      [CENTER_ROW + 2, CENTER_COL + 1, 4],       // only reachable via the chained bomb
+    ]);
+    const { grid: g } = annihilateAdjacent(grid);
+    expect(g[CENTER_ROW + 1][CENTER_COL + 1]).toBe(0); // chained bomb gone
+    expect(g[CENTER_ROW + 2][CENTER_COL + 1]).toBe(0); // its blast cleared this
+  });
+
+  test('a lone bomb with no match does not detonate', () => {
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL, bomb(3)],
+      [CENTER_ROW + 1, CENTER_COL, 5], // adjacent but different value
+    ]);
+    const { annihilatedCells } = annihilateAdjacent(grid);
+    expect(annihilatedCells.length).toBe(0);
   });
 });
 

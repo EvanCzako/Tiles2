@@ -1,6 +1,6 @@
 import type { Grid, GridCfg, PushResult } from '../types';
 import { DEFAULT_CFG } from './config';
-import { randTileSideExcluding } from './tiles';
+import { randPendingTile } from './tiles';
 
 export function pushFromLeft(grid: Grid, leftPending: number[], cfg: GridCfg = DEFAULT_CFG): PushResult {
   const { COLS, PENDING_SIZE, PENDING_ROW_START, CENTER_COL } = cfg;
@@ -34,7 +34,7 @@ export function pushFromLeft(grid: Grid, leftPending: number[], cfg: GridCfg = D
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
+    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
@@ -71,7 +71,7 @@ export function pushFromRight(grid: Grid, rightPending: number[], cfg: GridCfg =
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
+    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
@@ -101,7 +101,7 @@ export function pushFromTop(grid: Grid, topPending: number[], cfg: GridCfg = DEF
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
+    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
@@ -131,7 +131,7 @@ export function pushFromBottom(grid: Grid, bottomPending: number[], cfg: GridCfg
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randTileSideExcluding(i > 0 ? newPending[i - 1] : -1);
+    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }

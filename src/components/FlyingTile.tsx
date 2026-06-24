@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CELL, ANIM_MS } from '../constants';
-import { getTileColor } from '../gameLogic';
+import { getTileColor, baseValue, isBomb } from '../gameLogic';
+import useGameStore from '../store';
 
 interface FlyingTileProps {
   value: number;
@@ -19,7 +20,10 @@ export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough =
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const { bg, text } = getTileColor(value);
+  const palette = useGameStore((s) => s.colorPalette);
+  const { bg, text } = getTileColor(value, palette);
+  const base = baseValue(value);
+  const bomb = isBomb(value);
   const dx = fromX - toX;
   const dy = fromY - toY;
 
@@ -48,7 +52,7 @@ export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough =
         zIndex: 20,
       }}
     >
-      {value}
+      {bomb ? <span style={{ fontSize: CELL * 0.5 }}>💣</span> : base}
     </div>
   );
 }

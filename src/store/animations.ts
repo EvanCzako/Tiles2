@@ -132,8 +132,9 @@ export function runCollapseLoop(
     const curCfg = get().cfg;
     const {
       annihilatedCells, grid: annGrid, score: annScore,
-      boardWipeGroupCells, boardWipeSpreadCells, regularCells,
+      boardWipeGroupCells, boardWipeSpreadCells, regularCells, bombBlastCells,
     } = annihilateAdjacent(settled, curCfg);
+    const bombFlash = new Set(bombBlastCells.map(([r, c]) => `${r},${c}`));
 
     if (annihilatedCells.length === 0) {
       endTurn(settled, pendingPayload, get, set);
@@ -142,7 +143,7 @@ export function runCollapseLoop(
 
     const nextCombo_ = nextCombo(combo);
     const proceed = () => {
-      set({ grid: annGrid, annihilateSet: new Set(), boardWipeFlashSet: new Set() });
+      set({ grid: annGrid, annihilateSet: new Set(), boardWipeFlashSet: new Set(), bombFlashSet: new Set() });
       if (nextCombo_ === NUKE_COMBO && !nukeUsed) {
         nukeCenterAndSettle(annGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide);
       } else {
@@ -160,6 +161,7 @@ export function runCollapseLoop(
       set({
         boardWipeFlashSet: new Set(boardWipeGroupCells.map(([r, c]) => `${r},${c}`)),
         ...(regularCells.length > 0 && { annihilateSet: new Set(regularCells.map(([r, c]) => `${r},${c}`)) }),
+        ...(bombFlash.size > 0 && { bombFlashSet: bombFlash }),
       });
       // Phase 2: spread cells join 150 ms later
       setTimeout(() => {
@@ -174,7 +176,10 @@ export function runCollapseLoop(
         setTimeout(proceed, FLASH_MS);
       }, BOARD_WIPE_STAGGER_MS);
     } else {
-      set({ annihilateSet: new Set(annihilatedCells.map(([r, c]) => `${r},${c}`)) });
+      set({
+        annihilateSet: new Set(regularCells.map(([r, c]) => `${r},${c}`)),
+        ...(bombFlash.size > 0 && { bombFlashSet: bombFlash }),
+      });
       setTimeout(proceed, FLASH_MS);
     }
   };

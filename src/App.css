@@ -343,6 +343,39 @@ body {
   position: relative;
 }
 
+/* ── Bomb tile glyph ─────────────────────────────────────────────────────── */
+
+.tile-bomb-glyph {
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55));
+}
+
+/* ── Bomb blast flash (explosive orange pop) ─────────────────────────────── */
+
+@keyframes flash-bomb-overlay {
+  0%   { opacity: 0;   transform: scale(0.6); }
+  18%  { opacity: 1;   transform: scale(1.35); }
+  55%  { opacity: 0.85; transform: scale(1.05); }
+  100% { opacity: 0;   transform: scale(1.4); }
+}
+
+.tile--flash-bomb {
+  animation: flash-annihilate 320ms ease-in forwards;
+  z-index: 11;
+  position: relative;
+}
+
+.tile--flash-bomb::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 8px;
+  background: radial-gradient(circle, #fff3b0 0%, #ff9500 45%, #ff3b00 100%);
+  animation: flash-bomb-overlay 320ms ease-out forwards;
+  pointer-events: none;
+}
+
 /* ── Nuke flash (red-orange overlay) ─────────────────────────────────────── */
 
 @keyframes flash-nuke-overlay {
@@ -585,6 +618,61 @@ body {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.settings-sublabel {
+  font-size: 0.72rem;
+  color: #6a6a8a;
+  margin: -8px 0 0;
+}
+
+/* ── Color palette selector ───────────────────────────────────────────────── */
+
+.palette-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.palette-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #1e1e38;
+  border: 1px solid #3a3a6a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.palette-btn:hover {
+  background: #2a2a50;
+}
+
+.palette-btn.active {
+  border-color: #3a7bd5;
+  background: #243056;
+}
+
+.palette-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #c0c0ee;
+}
+
+.palette-swatches {
+  display: flex;
+  gap: 3px;
+}
+
+.palette-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
 }
 
 .settings-high-score {

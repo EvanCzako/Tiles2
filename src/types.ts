@@ -63,7 +63,8 @@ export interface AnnihilateResult {
   // board-wide wipe breakdown (non-empty only when a 4+ connected group fired)
   boardWipeGroupCells: [number, number][];   // the triggering 4+ connected group
   boardWipeSpreadCells: [number, number][];  // all other matching tiles swept board-wide
-  regularCells: [number, number][];          // 2–3 group cells (no board-wipe)
+  regularCells: [number, number][];          // 2-tile group cells (no board-wipe)
+  bombBlastCells: [number, number][];        // cells cleared by bomb explosions (3×3 blast, chained)
 }
 
 export interface NukeCrossResult {
@@ -105,6 +106,7 @@ export interface PendingCommit {
   pendingKey: PendingKey;
 }
 
+export type PaletteId = 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia' | 'monochrome';
 export type Direction = 'left' | 'right' | 'up' | 'down';
 export type VerticalSide = 'top' | 'bottom';
 export type HorizontalSide = 'left' | 'right';
@@ -131,6 +133,7 @@ export interface GameState {
   flyingSource: FlyingSource;
   annihilateSet: Set<string>;
   boardWipeFlashSet: Set<string>;
+  bombFlashSet: Set<string>;
   nukeFlashSet: Set<string>;
   nukeActive: boolean;
   collapsingCells: Set<string>;
@@ -138,12 +141,14 @@ export interface GameState {
   frozenPendingRows: FrozenPendingRows | null;
   lastVerticalSide: VerticalSide;
   lastHorizontalSide: HorizontalSide;
+  colorPalette: PaletteId;
 }
 
 export interface GameActions {
   reset: () => void;
   resetHighScore: () => void;
   setGridMode: (mode: GridMode) => void;
+  setColorPalette: (id: PaletteId) => void;
   triggerPush: (direction: Direction) => void;
 }
 

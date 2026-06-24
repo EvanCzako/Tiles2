@@ -27,7 +27,7 @@ import {
   checkGameOver,
 } from '../game';
 import { initState, buildFrozenSnapshot, getAvailableDirections } from './init';
-import { saveHighScore } from './persistence';
+import { saveHighScore, saveColorPalette } from './persistence';
 import { runCollapseLoop } from './animations';
 
 const useGameStore = create<GameStore>((set, get) => ({
@@ -36,6 +36,7 @@ const useGameStore = create<GameStore>((set, get) => ({
   reset() { set(initState(get().gridMode)); },
   resetHighScore() { saveHighScore(get().gridMode, 0); set({ highScore: 0 }); },
   setGridMode(mode: GridMode) { set(initState(mode)); },
+  setColorPalette(id) { saveColorPalette(id); set({ colorPalette: id }); },
 
   triggerPush(direction: Direction) {
     const s = get();

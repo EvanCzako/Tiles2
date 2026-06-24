@@ -24,6 +24,7 @@ export default function Arena({ navigate }: ArenaProps) {
     flyingSource,
     annihilateSet,
     boardWipeFlashSet,
+    bombFlashSet,
     nukeFlashSet,
     collapsingCells,
     pendingCommit,
@@ -105,6 +106,7 @@ export default function Arena({ navigate }: ArenaProps) {
                   value={collapsingCells.has(key) ? 0 : val}
                   flashAnnihilate={annihilateSet.has(key)}
                   flashBoardWipe={boardWipeFlashSet.has(key)}
+                  flashBomb={bombFlashSet.has(key)}
                   flashNuke={nukeFlashSet.has(key)}
                   centerColumn={c === CENTER_COL || r === CENTER_ROW}
                 />

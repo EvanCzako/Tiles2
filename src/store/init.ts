@@ -2,6 +2,7 @@ import type {
   Grid,
   GridCfg,
   GridMode,
+  PaletteId,
   Layout,
   Direction,
   VerticalSide,
@@ -13,7 +14,7 @@ import type {
 } from '../types';
 import { GRID_CONFIGS, createInitialGrid, createInitialPending } from '../game';
 import { getLayout } from '../layout';
-import { loadHighScore } from './persistence';
+import { loadHighScore, loadColorPalette } from './persistence';
 import {
   pushFromLeft,
   pushFromRight,
@@ -39,6 +40,7 @@ export interface InitState {
   flyingSource: FlyingSource;
   annihilateSet: Set<string>;
   boardWipeFlashSet: Set<string>;
+  bombFlashSet: Set<string>;
   nukeFlashSet: Set<string>;
   nukeActive: boolean;
   collapsingCells: Set<string>;
@@ -46,6 +48,7 @@ export interface InitState {
   frozenPendingRows: FrozenPendingRows | null;
   lastVerticalSide: VerticalSide;
   lastHorizontalSide: HorizontalSide;
+  colorPalette: PaletteId;
 }
 
 export function initState(mode: GridMode = '9x9'): InitState {
@@ -69,6 +72,7 @@ export function initState(mode: GridMode = '9x9'): InitState {
     flyingSource: null,
     annihilateSet: new Set(),
     boardWipeFlashSet: new Set(),
+    bombFlashSet: new Set(),
     nukeFlashSet: new Set(),
     nukeActive: false,
     collapsingCells: new Set(),
@@ -76,6 +80,7 @@ export function initState(mode: GridMode = '9x9'): InitState {
     frozenPendingRows: null,
     lastVerticalSide: 'top',
     lastHorizontalSide: 'left',
+    colorPalette: loadColorPalette(),
   };
 }
 
