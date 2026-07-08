@@ -1,30 +1,69 @@
+import Tile from './Tile';
+import { BOMB_FLAG, STONE_FLAG } from '../gameLogic';
 import type { Screen } from '../types';
 
+interface Example {
+  tiles: number[];
+  caption: string;
+}
+
 interface Section {
+  icon: string;
   title: string;
   body: string;
+  examples?: Example[];
 }
 
 const sections: Section[] = [
   {
-    title: 'Swipe to Push',
-    body: 'Swipe left, right, up, or down to push a row of tiles onto the grid. Tiles fly in from the side you swipe toward.',
+    icon: '👆',
+    title: 'Push',
+    body: 'Swipe — or use the arrow keys — to push a strip of five tiles into the board from that side. All four incoming strips are always visible, so plan ahead.',
   },
   {
-    title: 'Annihilation',
-    body: 'When two identical tiles touch after a push, they annihilate — both disappear and you earn points equal to their combined value.',
+    icon: '💥',
+    title: 'Annihilate',
+    body: 'Matching tiles that touch annihilate and score. A pair clears just those two — but connect three or more and every tile of that value anywhere on the board is wiped.',
+    examples: [
+      { tiles: [2, 2], caption: 'pair — clears itself' },
+      { tiles: [5, 5, 5], caption: '3+ — wipes every 5 on the board' },
+    ],
   },
   {
-    title: 'Combos',
-    body: 'Chain annihilations to build a combo multiplier. Each consecutive chain increases your multiplier up to 5×, boosting your score.',
+    icon: '⚡',
+    title: 'Cascade Combos',
+    body: 'After a clear, tiles collapse toward the center. If the collapse creates new matches, the cascade continues and your multiplier climbs — up to ×5 per wave.',
   },
   {
+    icon: '☢',
     title: 'Nuke',
-    body: 'Reach a 5× combo and the entire center row and column explodes — clearing all tiles in the cross and earning massive bonus points.',
+    body: 'Every match adds to the nuke meter — bigger combos charge it faster. When the button reads NUKE, tap it (or press Space) to obliterate the entire center row and column at ×5 points. Fire it whenever you choose.',
   },
   {
+    icon: '↻',
+    title: 'Swap',
+    body: "Don't like an incoming strip? Tap SWAP, then tap any of the four strips to reroll its tiles. Recharges after 10 turns.",
+  },
+  {
+    icon: '✨',
+    title: 'Clean Sweep',
+    body: 'Empty the entire board in one turn and you bank a bonus — the more tiles you cleared, the bigger it pays — plus a fully charged nuke.',
+  },
+  {
+    icon: '💣',
+    title: 'Bombs & Stones',
+    body: 'Clearing a bomb blasts everything around it — and bombs caught in a blast chain. Stones never budge and hide their value; clear them with a bomb, or by wiping their value board-wide.',
+    examples: [{ tiles: [BOMB_FLAG + 3, STONE_FLAG + 4], caption: 'bomb · stone' }],
+  },
+  {
+    icon: '🧱',
+    title: 'Corner Pockets',
+    body: "The four 2×2 corners hold obstacle tiles with their own gravity. Pushes can't reach them — but board-wide wipes and bomb blasts can.",
+  },
+  {
+    icon: '🏁',
     title: 'Game Over',
-    body: "The game ends when there's no valid move left — when no tile from any direction can land anywhere on the grid.",
+    body: 'The run ends when no push can land a single tile. Keep the center breathing.',
   },
 ];
 
@@ -41,9 +80,26 @@ export default function HowToPlayScreen({ navigate }: HowToPlayScreenProps) {
       </div>
       <div className="htp-content">
         {sections.map((s) => (
-          <div key={s.title} className="htp-section">
-            <p className="htp-section-title">{s.title}</p>
-            <p className="htp-section-body">{s.body}</p>
+          <div key={s.title} className="htp-card">
+            <span className="htp-card-icon">{s.icon}</span>
+            <div className="htp-card-text">
+              <p className="htp-card-title">{s.title}</p>
+              <p className="htp-card-body">{s.body}</p>
+              {s.examples && (
+                <div className="htp-examples">
+                  {s.examples.map((ex) => (
+                    <div key={ex.caption} className="htp-example">
+                      <div className="htp-example-tiles">
+                        {ex.tiles.map((v, i) => (
+                          <Tile key={i} value={v} size={26} />
+                        ))}
+                      </div>
+                      <span className="htp-example-caption">{ex.caption}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

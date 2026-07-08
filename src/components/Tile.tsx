@@ -1,5 +1,5 @@
 import { CELL } from '../constants';
-import { getTileColor, baseValue, isBomb } from '../gameLogic';
+import { getTileColor, baseValue, isBomb, isLocked, isStone } from '../gameLogic';
 import useGameStore from '../store';
 
 interface TileProps {
@@ -27,6 +27,8 @@ export default function Tile({
   const { bg, text } = getTileColor(value, palette);
   const base = baseValue(value);
   const bomb = isBomb(value);
+  const locked = isLocked(value);
+  const stone = isStone(value);
   const flashClass = flashNuke
     ? ' tile--flash-nuke'
     : flashBomb
@@ -38,7 +40,7 @@ export default function Tile({
           : '';
   return (
     <div
-      className={`tile${value > 0 ? ' tile--filled' : ''}${bomb ? ' tile--bomb' : ''}${flashing ? ' tile--flash' : ''}${flashClass}`}
+      className={`tile${value > 0 ? ' tile--filled' : ''}${bomb ? ' tile--bomb' : ''}${locked ? ' tile--locked' : ''}${stone ? ' tile--stone' : ''}${flashing ? ' tile--flash' : ''}${flashClass}`}
       style={{
         position: 'relative',
         width: size,
@@ -49,7 +51,11 @@ export default function Tile({
       }}
     >
       {bomb ? (
-        <span className="tile-bomb-glyph" style={{ fontSize: size * 0.5 }}>💣</span>
+        <span className="tile-special-glyph" style={{ fontSize: size * 0.5 }}>💣</span>
+      ) : locked ? (
+        <span className="tile-special-glyph" style={{ fontSize: size * 0.5 }}>🔒</span>
+      ) : stone ? (
+        <span className="tile-special-glyph" style={{ fontSize: size * 0.5 }}>🪨</span>
       ) : base > 0 ? (
         base
       ) : (

@@ -2,6 +2,7 @@ import type { PaletteId } from '../types';
 
 const LS_KEY = 'tilesHighScores';
 const PALETTE_KEY = 'tilesColorPalette';
+const SOUND_KEY = 'tilesSoundOn';
 const VALID_PALETTES: PaletteId[] = ['default', 'deuteranopia', 'protanopia', 'tritanopia', 'monochrome'];
 
 export function loadHighScores(): Record<string, number> {
@@ -34,4 +35,14 @@ export function loadColorPalette(): PaletteId {
 export function saveColorPalette(id: PaletteId): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(PALETTE_KEY, id);
+}
+
+export function loadSoundOn(): boolean {
+  if (typeof window === 'undefined') return true;
+  return localStorage.getItem(SOUND_KEY) !== 'false';
+}
+
+export function saveSoundOn(on: boolean): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SOUND_KEY, String(on));
 }

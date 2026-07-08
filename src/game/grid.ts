@@ -1,6 +1,18 @@
 import type { Grid, GridCfg } from '../types';
 import { DEFAULT_CFG } from './config';
 import { randTileSideExcluding2 } from './tiles';
+import { isCornerCell } from './corners';
+
+// True when every non-corner cell is empty — the "clean sweep" condition.
+// Corner blocks are excluded: they refill themselves and can never stay empty.
+export function isPlayAreaEmpty(grid: Grid, cfg: GridCfg = DEFAULT_CFG): boolean {
+  for (let r = 0; r < cfg.ROWS; r++) {
+    for (let c = 0; c < cfg.COLS; c++) {
+      if (grid[r][c] !== 0 && !isCornerCell(r, c, cfg)) return false;
+    }
+  }
+  return true;
+}
 
 export function createInitialGrid(cfg: GridCfg = DEFAULT_CFG): Grid {
   const { ROWS, COLS, PENDING_SIZE, PENDING_COL_START, PENDING_ROW_START, CENTER_ROW } = cfg;

@@ -1,6 +1,6 @@
 import type { Grid, GridCfg, AnnihilateResult } from '../types';
 import { DEFAULT_CFG } from './config';
-import { baseValue, isBomb } from './tiles';
+import { baseValue, isBomb, isLocked } from './tiles';
 
 // Groups of 2: annihilate just that group.
 // Groups of 3+: annihilate every tile of that value anywhere on the board (including corners).
@@ -64,7 +64,7 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
       for (let c = 0; c < COLS; c++) {
         if (grid[r][c] !== 0 && boardWipeValues.has(baseValue(grid[r][c]))) {
           toAnnihilate.push([r, c]);
-          score += baseValue(grid[r][c]);
+          if (!isLocked(grid[r][c])) score += baseValue(grid[r][c]); // locked tiles don't score on unlock
           if (!boardWipeGroupKeySet.has(`${r},${c}`)) {
             boardWipeSpreadCells.push([r, c]);
           }
@@ -78,14 +78,15 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
     if (!boardWipeValues.has(value)) {
       toAnnihilate.push(...cells);
       regularCells.push(...cells);
-      score += cells.length * value;
+      const unlockedCount = cells.filter(([r, c]) => isLocked(grid[r][c])).length;
+      score += (cells.length - unlockedCount) * value; // locked tiles don't score on unlock
     }
   }
 
   if (toAnnihilate.length === 0) {
     return {
-      grid, annihilatedCells: [], score: 0,
-      boardWipeGroupCells: [], boardWipeSpreadCells: [], regularCells: [], bombBlastCells: [],
+      grid, annihilatedCells: [], score: 0, boardWipeValues: [],
+      boardWipeGroupCells: [], boardWipeSpreadCells: [], regularCells: [], bombBlastCells: [], unlockedCells: [],
     };
   }
 
@@ -112,7 +113,7 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
         if (!clearedSet.has(nkey)) {
           clearedSet.add(nkey);
           bombBlastCells.push([nr, nc]);
-          score += baseValue(grid[nr][nc]);
+          if (!isLocked(grid[nr][nc])) score += baseValue(grid[nr][nc]); // locked tiles don't score on unlock
         }
         if (isBomb(grid[nr][nc]) && !detonated.has(nkey)) detonateQueue.push([nr, nc]);
       }
@@ -125,9 +126,18 @@ export function annihilateAdjacent(grid: Grid, cfg: GridCfg = DEFAULT_CFG): Anni
   });
 
   const newGrid = grid.map((row) => [...row]);
-  for (const [r, c] of annihilatedCells) newGrid[r][c] = 0;
+  const unlockedCells: [number, number][] = [];
+  for (const [r, c] of annihilatedCells) {
+    if (isLocked(newGrid[r][c])) {
+      newGrid[r][c] = baseValue(newGrid[r][c]); // first hit: remove lock, keep tile
+      unlockedCells.push([r, c]);
+    } else {
+      newGrid[r][c] = 0;
+    }
+  }
   return {
     grid: newGrid, annihilatedCells, score,
-    boardWipeGroupCells, boardWipeSpreadCells, regularCells, bombBlastCells,
+    boardWipeValues: [...boardWipeValues].sort((a, b) => a - b),
+    boardWipeGroupCells, boardWipeSpreadCells, regularCells, bombBlastCells, unlockedCells,
   };
 }

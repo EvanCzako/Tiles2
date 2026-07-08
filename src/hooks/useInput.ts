@@ -1,7 +1,10 @@
 import { useEffect, useCallback, useRef } from 'react';
 import type { Direction } from '../types';
 
-export function useInput(triggerPush: (direction: Direction) => void): void {
+export function useInput(
+  triggerPush: (direction: Direction) => void,
+  fireNuke?: () => void
+): void {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
@@ -19,9 +22,12 @@ export function useInput(triggerPush: (direction: Direction) => void): void {
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         triggerPush('up');
+      } else if (e.key === ' ' && fireNuke) {
+        e.preventDefault();
+        fireNuke();
       }
     },
-    [triggerPush]
+    [triggerPush, fireNuke]
   );
 
   useEffect(() => {

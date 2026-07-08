@@ -11,10 +11,15 @@ import type {
   FlyingTileDescriptor,
   FrozenPendingRows,
   PendingCommit,
+  ScorePopup,
+  ShakeState,
+  Announcement,
+  GameStore,
 } from '../types';
-import { GRID_CONFIGS, createInitialGrid, createInitialPending } from '../game';
+import { GRID_CONFIGS, createInitialGrid, createInitialPending, NUKE_CHARGE_MAX } from '../game';
 import { getLayout } from '../layout';
-import { loadHighScore, loadColorPalette } from './persistence';
+import { AUTO_MOVE_MS } from '../constants';
+import { loadHighScore, loadColorPalette, loadSoundOn } from './persistence';
 import {
   pushFromLeft,
   pushFromRight,
@@ -49,6 +54,15 @@ export interface InitState {
   lastVerticalSide: VerticalSide;
   lastHorizontalSide: HorizontalSide;
   colorPalette: PaletteId;
+  nukeCharge: number;
+  rerollArmed: boolean;
+  turnsUntilReroll: number;
+  turnClearedTiles: number;
+  cleanSweepAwarded: boolean;
+  scorePopups: ScorePopup[];
+  shake: ShakeState | null;
+  announcement: Announcement | null;
+  soundOn: boolean;
 }
 
 export function initState(mode: GridMode = '9x9'): InitState {
@@ -81,6 +95,15 @@ export function initState(mode: GridMode = '9x9'): InitState {
     lastVerticalSide: 'top',
     lastHorizontalSide: 'left',
     colorPalette: loadColorPalette(),
+    nukeCharge: 0,
+    rerollArmed: false,
+    turnsUntilReroll: 0,
+    turnClearedTiles: 0,
+    cleanSweepAwarded: false,
+    scorePopups: [],
+    shake: null,
+    announcement: null,
+    soundOn: loadSoundOn(),
   };
 }
 
@@ -112,4 +135,24 @@ export function getAvailableDirections(s: { grid: Grid; cfg: GridCfg }): Directi
   if (anyLanding(pushFromTop(grid, dummy, cfg))) dirs.push('down');
   if (anyLanding(pushFromBottom(grid, dummy, cfg))) dirs.push('up');
   return dirs;
+}
+
+// The player still has a meaningful alternative to swiping: a charged nuke or
+// a ready strip reroll. While true, the single-direction auto-move must not
+// fire — the "forced" swipe isn't actually forced.
+export function canUseAbility(s: { nukeCharge: number; turnsUntilReroll: number }): boolean {
+  return s.nukeCharge >= NUKE_CHARGE_MAX || s.turnsUntilReroll === 0;
+}
+
+// Auto-push the only available direction after a short delay — but only when
+// the player truly has no other option. Re-checked at fire time in case an
+// ability became usable (or a turn started) while the timer was pending.
+export function scheduleAutoMoveIfForced(get: () => GameStore): void {
+  const s = get();
+  const available = getAvailableDirections(s);
+  if (available.length !== 1 || canUseAbility(s)) return;
+  setTimeout(() => {
+    const cur = get();
+    if (!cur.gameOver && !cur.animating && !canUseAbility(cur)) cur.triggerPush(available[0]);
+  }, AUTO_MOVE_MS);
 }

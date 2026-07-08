@@ -1,40 +1,49 @@
 import type { GridCfg, TileColor, PaletteId } from '../types';
 import { DEFAULT_CFG } from './config';
 
-// ── Bomb tiles ──────────────────────────────────────────────────────────────
-// A bomb tile is stored as (base value + BOMB_FLAG) so it rides through gravity,
-// push and corner-settle untouched — those only shuffle numbers / test `=== 0`.
-// Decode with baseValue()/isBomb() at the points that interpret the number:
-// matching (annihilate), rendering (Tile/FlyingTile/getTileColor) and scoring.
-export const BOMB_FLAG = 1000;
-export const BOMB_CHANCE = 0.05; // ~5% of newly spawned pending tiles become bombs
+// ── Specialty tile flags ─────────────────────────────────────────────────────
+// Specialty tiles are stored as (base value + FLAG) so they ride through gravity,
+// push, and corner-settle untouched — those only shuffle numbers / test `=== 0`.
+// Decode with baseValue()/is*() at the points that interpret the number:
+// matching (annihilate), rendering (Tile/FlyingTile/getTileColor), and scoring.
+//
+// Flag ranges (non-overlapping):
+//   1–7       regular tiles
+//   1001–1007 bomb      (BOMB_FLAG   = 1000): detonates a 3×3 blast on annihilation
+//   2001–2007 locked    (LOCKED_FLAG = 2000): needs 2 matches — first hit unlocks it
+//   3001–3007 stone     (STONE_FLAG  = 3000): immovable during gravity/push
+export const BOMB_FLAG   = 1000;
+export const LOCKED_FLAG = 2000;
+export const STONE_FLAG  = 3000;
 
-export function isBomb(v: number): boolean {
-  return v >= BOMB_FLAG;
-}
+export const BOMB_CHANCE   = 0.025; // ~2.5%  of newly spawned pending tiles
+export const LOCKED_CHANCE = 0;    // disabled for now — lock tiles never spawn (all unlock logic kept)
+export const STONE_CHANCE  = 0.03; // ~3%  of newly spawned pending tiles
+
+export function isBomb(v: number): boolean   { return v >= BOMB_FLAG   && v < LOCKED_FLAG; }
+export function isLocked(v: number): boolean { return v >= LOCKED_FLAG && v < STONE_FLAG; }
+export function isStone(v: number): boolean  { return v >= STONE_FLAG; }
 
 export function baseValue(v: number): number {
-  return v >= BOMB_FLAG ? v - BOMB_FLAG : v;
+  if (v >= STONE_FLAG)  return v - STONE_FLAG;
+  if (v >= LOCKED_FLAG) return v - LOCKED_FLAG;
+  if (v >= BOMB_FLAG)   return v - BOMB_FLAG;
+  return v;
 }
 
-// Occasionally flag a freshly spawned tile as a bomb (never flags an empty cell).
-export function maybeBomb(v: number): number {
-  return v !== 0 && Math.random() < BOMB_CHANCE ? v + BOMB_FLAG : v;
-}
-
-// 1: ~18%, 2: ~17%, 3: ~16%, 4: ~15%, 5: ~13%, 6: ~12%, 7: ~9%
+// 1: ~22%, 2: ~19%, 3: ~16%, 4: ~14%, 5: ~12%, 6: ~10%, 7: ~7%
 export function randTileSide(): number {
   const r = Math.random() * 100;
-  if (r < 18) return 1;
-  if (r < 35) return 2;
-  if (r < 51) return 3;
-  if (r < 66) return 4;
-  if (r < 79) return 5;
-  if (r < 91) return 6;
+  if (r < 22) return 1;
+  if (r < 41) return 2;
+  if (r < 57) return 3;
+  if (r < 71) return 4;
+  if (r < 83) return 5;
+  if (r < 93) return 6;
   return 7;
 }
 
-// Exclusions compare base values so a bomb-N is still treated as "an N".
+// Exclusions compare base values so a bomb-N / locked-N is still treated as "an N".
 export function randTileSideExcluding(exclude: number): number {
   const ex = baseValue(exclude);
   let v: number;
@@ -49,9 +58,14 @@ export function randTileSideExcluding2(a: number, b: number): number {
   return v;
 }
 
-// Pending tiles can spawn as bombs; corner-block and initial-board tiles do not.
+// Pending tiles can spawn as bombs, locked, or stone; corner-block / initial-board tiles do not.
 export function randPendingTile(exclude: number): number {
-  return maybeBomb(randTileSideExcluding(exclude));
+  const v = randTileSideExcluding(exclude);
+  const r = Math.random();
+  if (r < BOMB_CHANCE)                              return v + BOMB_FLAG;
+  if (r < BOMB_CHANCE + LOCKED_CHANCE)              return v + LOCKED_FLAG;
+  if (r < BOMB_CHANCE + LOCKED_CHANCE + STONE_CHANCE) return v + STONE_FLAG;
+  return v;
 }
 
 export function createInitialPending(cfg: GridCfg = DEFAULT_CFG): number[] {

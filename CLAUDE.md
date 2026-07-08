@@ -108,18 +108,35 @@ Both `gravityMoves` and `horizontalMoves` are arrays of `{ value, fromRow, fromC
 
 ---
 
-## Combo & Nuke System
+## Combo System
 ```
-MAX_COMBO  = 5   // score cap per cascade wave
-NUKE_COMBO = 6   // sentinel that triggers the nuke instead of recursing
+MAX_COMBO = 5   // combo (and score multiplier) cap per cascade wave
 ```
 
-- Combo starts at 1 per turn and increments each cascade wave via `nextCombo(combo)`, capped at NUKE_COMBO.
+- Combo starts at 1 per turn and increments each cascade wave via `nextCombo(combo)`, capped at MAX_COMBO.
 - Score per wave: `annScore × min(combo, MAX_COMBO)`.
-- **Nuke:** when `nextCombo` would reach `NUKE_COMBO` (i.e. the 5th consecutive cascade), `nukeCenterAndSettle` fires instead of another collapse loop:
-  1. Red-orange flash (`nukeFlashSet`) the full center cross (entire row CENTER_ROW + entire col CENTER_COL).
-  2. Clear only the non-empty cross cells and score them × MAX_COMBO (5).
-  3. Run one final collapse loop with `nukeUsed=true` (prevents a second nuke in the same turn).
+
+## Player Abilities (combo strip buttons)
+```
+NUKE_CHARGE_MAX = 12   // charge points to fill the nuke meter
+REROLL_COOLDOWN = 10   // turns between pending-strip rerolls
+```
+
+- **Chargeable nuke:** each annihilation wave adds its combo multiplier to `nukeCharge` (capped at NUKE_CHARGE_MAX; a chime plays when it fills). The NUKE button (left of the combo badge) shows `☢ N/12`, pulses when full, and fires via click or **Space** (`fireNuke` action):
+  1. Red-orange flash (`nukeFlashSet`) the full center cross (entire row CENTER_ROW + entire col CENTER_COL), big screen shake, "NUKE!" announcement.
+  2. Clear only the non-empty cross cells and score them × MAX_COMBO (5) — `nukeCrossScore` uses base values so specialty flags don't inflate the score.
+  3. Run the collapse loop at combo = MAX_COMBO with `chargeNuke=false` (nuke fallout can't recharge the meter; charging resumes next turn).
+- **Strip reroll (SWAP):** the SWAP button (right of the combo badge) arms strip-pick mode (`rerollArmed`) — all four pending strips pulse; tapping one rerolls it (`rerollStrip(side)`, fresh `createInitialPending`) and starts a REROLL_COOLDOWN-turn cooldown (`turnsUntilReroll`, decremented per push, shown on the button). Arming is a toggle; pushing disarms.
+
+## Clean Sweep
+```
+CLEAN_SWEEP_BONUS_PER_TILE = 25
+```
+When a turn empties the **entire play area** (`isPlayAreaEmpty` in `game/grid.ts` — every non-corner cell 0; corners are excluded because they refill themselves), `endTurn` awards, once per turn (`cleanSweepAwarded` flag):
+- **Bonus** = `CLEAN_SWEEP_BONUS_PER_TILE × turnClearedTiles × min(combo, MAX_COMBO)`. `turnClearedTiles` accumulates per turn across cascade waves and nuke clears (unlocked-not-cleared tiles excluded); reset on push/fireNuke.
+- **Fully charged nuke** (`nukeCharge = NUKE_CHARGE_MAX`).
+- Juice: gold "CLEAN SWEEP!" announcement, big shake, ascending fanfare (`playCleanSweep`), `+bonus` popup at center.
+The check runs at the top of `endTurn`, before corner settlement, so corner-refill cascades can't re-trigger it.
 
 ---
 
@@ -130,8 +147,10 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 - `CELL = 52` px, `GAP = 4` px
 - `ANIM_MS = 220` ms (fly/collapse transition)
 - `FLASH_MS = 320` ms (annihilation/nuke flash hold)
-- `AUTO_MOVE_MS = 500` ms (delay before auto-move when only 1 direction available)
-- `HEADER_H = 84` px (header 52 px + combo strip 32 px; used by `useScale` to compute available board space)
+- `AUTO_MOVE_MS = 500` ms (delay before auto-move when only 1 direction available — **suppressed** while the player has a usable ability: charged nuke or ready reroll; see `canUseAbility`/`scheduleAutoMoveIfForced` in `store/init.ts`. Spending the reroll re-schedules it.)
+- `POPUP_MS = 900` / `SHAKE_MS = 450` / `ANNOUNCE_MS = 1000` ms (juice element lifetimes)
+- `HEADER_H = 92` px (header 52 px + combo strip 40 px; used by `useScale` to compute available board space)
+- `COMBO_COLORS` (constants.ts) — combo color ramp shared by the combo badge and score popups
 
 **FlyingTile** (`src/components/FlyingTile.tsx`): absolutely-positioned div, starts at `from` position via CSS `translate`, transitions to `(0,0)` (i.e. `to`). Uses double-rAF to trigger the CSS transition after mount.
 
@@ -143,6 +162,12 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 - `nukeFlashSet` → `tile--flash-nuke` — red-orange overlay (nuke cross clear)
 
 **`collapsingCells`:** set of cells hidden during a collapse animation (their flying counterpart is visible instead).
+
+## Juice (sound / popups / shake / announcer)
+- **Sound** (`src/sound.ts`): synthesized WebAudio (no assets), lazily created inside user gestures. `playPush`, `playMatch(combo)` (pentatonic pitch ramp per cascade wave), `playBoardWipe`, `playBomb`, `playNuke`, `playNukeReady`, `playReroll`, `playGameOver`. Global on/off via `setSoundEnabled`; persisted to localStorage (`tilesSoundOn`) and toggleable in Settings (`soundOn` / `setSoundOn`).
+- **Score popups** (`scorePopups` in store): floating `+N` per annihilation wave (and per nuke), spawned by `spawnScorePopup` at the centroid of the cleared cells (arena pixel coords), sized/colored by combo tier, rendered by `Arena` (`.score-popup`), removed after `POPUP_MS`.
+- **Screen shake** (`shake`): `{ tier: 'small' | 'big', id }` — small on bomb blasts, big on nuke; `GameScreen` applies `shake-small`/`shake-big` to `.arena-container`, cleared after `SHAKE_MS`.
+- **Announcer** (`announcement`): `{ text, id, color? }` — "ALL Ns!" on 3+ wipes (glow tinted to the wiped value's tile color; multiple values join as "ALL 3s & 5s!"), "NUKE!" on nuke (default red-orange glow); rendered centered over `.arena-container` (`.announcement`), cleared after `ANNOUNCE_MS`.
 
 ---
 
@@ -164,12 +189,20 @@ frozenPendingRows   // snapshot of per-row/col activity at push time (used inter
 lastVerticalSide    // 'top'|'bottom'
 lastHorizontalSide  // 'left'|'right'
 cfg / layout / gridMode
+nukeCharge          // 0..NUKE_CHARGE_MAX — manual nuke fires when full (fireNuke action / Space)
+rerollArmed         // true while picking a strip to reroll
+turnsUntilReroll    // reroll cooldown; 0 = ready
+turnClearedTiles / cleanSweepAwarded  // per-turn clean-sweep tracking (see Clean Sweep)
+scorePopups         // ScorePopup[] — floating "+N" indicators
+shake               // { tier: 'small'|'big', id } | null — screen shake trigger
+announcement        // { text, id, color? } | null — "ALL Ns!" / "NUKE!" banner
+soundOn             // sound toggle (persisted)
 ```
 
-**Key store helpers (module-level, not exported):**
+**Key store helpers (in `store/animations.ts`):**
 - `endTurn(grid, pendingPayload, get, set)` — runs `settleCorners`, animates both corner phases, then calls `finalize` or re-enters cascade if corner refill created matches.
-- `runCollapseLoop(...)` — recursive cascade (combo 1→4); calls `nukeCenterAndSettle` when `nextCombo === NUKE_COMBO`.
-- `nukeCenterAndSettle(...)` — nuke flash → clear → `runCollapseLoop` with `nukeUsed=true`.
+- `runCollapseLoop(..., combo, chargeNuke)` — recursive cascade; accrues nuke charge, plays sounds, spawns popups/shake/announcements per wave. `chargeNuke=false` for nuke-initiated cascades.
+- `nukeCenterAndSettle(...)` — nuke flash/sound/shake/announcement → clear cross → `runCollapseLoop` at combo MAX_COMBO with `chargeNuke=false`. Invoked only by the `fireNuke` store action.
 
 High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'` as a JSON object (`{ '9x9': number, '11x11': number, ... }`).
 
@@ -179,7 +212,7 @@ High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'
 Simple `useState('menu')` router. Screens: `'menu'` → `'game'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
 
 ## Combo Strip
-A 32 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift). When `combo >= 2` it renders an animated `×N` badge (CSS class `combo-strip-badge`) using the combo color ramp (grey→yellow→orange→red-orange→red). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
+A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift) and holds three zones: the NUKE charge button (left), the combo badge slot (center), and the SWAP/reroll button (right). When `combo >= 2` the center renders an animated `×N` badge (CSS class `combo-strip-badge`) using `COMBO_COLORS` (grey→yellow→orange→red-orange→red). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
 
 ## Source Layout
 ```
@@ -187,12 +220,12 @@ src/
   game/           ← pure game logic (no React, no browser APIs)
     config.ts     — GRID_CONFIGS, DEFAULT_CFG, top-level ROWS/COLS constants
     tiles.ts      — randTileSide*, getTileColor, createInitialPending
-    grid.ts       — createInitialGrid
+    grid.ts       — createInitialGrid, isPlayAreaEmpty
     corners.ts    — isCornerCell, getCornerBlockSpecs, settleCorners
     push.ts       — pushFromLeft/Right/Top/Bottom, checkGameOver
     collapse.ts   — collapseGrid (+ private consolidateCrossPhase)
     annihilate.ts — annihilateAdjacent
-    combo.ts      — MAX_COMBO, NUKE_COMBO, nextCombo, nukeCrossScore
+    combo.ts      — MAX_COMBO, NUKE_CHARGE_MAX, REROLL_COOLDOWN, nextCombo, nukeCrossScore
     index.ts      — re-exports all of the above
   store/          ← Zustand store, split by concern
     persistence.ts — localStorage high score helpers
@@ -204,25 +237,26 @@ src/
   gameLogic.ts    — barrel re-export of src/game/index (backward compat)
   store.ts        — barrel re-export of src/store/index (backward compat)
   types.ts        — all shared TypeScript types
-  constants.ts    — CELL, GAP, animation timings
+  constants.ts    — CELL, GAP, animation/juice timings, COMBO_COLORS
+  sound.ts        — synthesized WebAudio SFX (see Juice section)
   layout.ts       — getLayout, cellPos, *PendingPos helpers
 ```
 
 ## Components
 | File | Role |
 |------|------|
-| `Arena.tsx` | Grid + 4 pending strips + flying tiles; reads `annihilateSet`, `boardWipeFlashSet`, `nukeFlashSet` to drive flash props on Tile |
+| `Arena.tsx` | Grid + 4 pending strips + flying tiles + score popups; reads `annihilateSet`, `boardWipeFlashSet`, `nukeFlashSet` to drive flash props on Tile; strips are clickable when `rerollArmed` |
 | `Tile.tsx` | Single tile div; props: `value`, `size`, `flashing`, `flashAnnihilate`, `flashBoardWipe`, `flashNuke`, `centerColumn` |
 | `FlyingTile.tsx` | Animated flying tile (CSS transition via double-rAF) |
-| `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + combo strip + arena |
+| `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + combo strip (nuke/combo/reroll) + arena; applies shake class and announcement overlay |
 | `GameHeader.tsx` | Score / highScore display; title is clickable (navigates to menu via `onMenu` prop) |
 | `GameOverOverlay.tsx` | Overlay with Play Again + Main Menu |
-| `MenuScreen.tsx` | Title "UNTILED" + Play / How to Play / Settings buttons |
-| `HowToPlayScreen.tsx` | Static rule cards |
-| `SettingsScreen.tsx` | Grid mode selector (`'9x9'` or `'11x11'`) + high score reset (per-mode) |
+| `MenuScreen.tsx` | Title "UNTILED" + decorative mini-tile row + Play / How to Play / Settings buttons + best-score badge |
+| `HowToPlayScreen.tsx` | Rule cards (icon + text + mini `Tile` examples) covering push, annihilation, combos, nuke, swap, bombs/stones, corners, game over |
+| `SettingsScreen.tsx` | Card-based: sound toggle switch, color palette, high score + reset. Grid-size selector hidden while `GridMode` allows a single mode |
 
 ## Hooks
-- `useInput(triggerPush)` — keyboard (ArrowKeys) + touch (touchstart/touchend, 30px threshold)
+- `useInput(triggerPush, fireNuke?)` — keyboard (ArrowKeys push, Space fires nuke) + touch (touchstart/touchend, 30px threshold)
 - `useScale(containerW, containerH)` — responsive scale factor; listens to ResizeObserver + visualViewport + orientationchange; sets `--app-h` CSS var; clamps to [0.28, 1]
 
 ## Layout (`src/layout.ts`)

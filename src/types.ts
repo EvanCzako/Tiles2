@@ -60,11 +60,13 @@ export interface AnnihilateResult {
   grid: Grid;
   annihilatedCells: [number, number][];
   score: number;
-  // board-wide wipe breakdown (non-empty only when a 4+ connected group fired)
-  boardWipeGroupCells: [number, number][];   // the triggering 4+ connected group
+  // board-wide wipe breakdown (non-empty only when a 3+ connected group fired)
+  boardWipeValues: number[];                 // base values swept board-wide, ascending
+  boardWipeGroupCells: [number, number][];   // the triggering 3+ connected group
   boardWipeSpreadCells: [number, number][];  // all other matching tiles swept board-wide
   regularCells: [number, number][];          // 2-tile group cells (no board-wipe)
   bombBlastCells: [number, number][];        // cells cleared by bomb explosions (3×3 blast, chained)
+  unlockedCells: [number, number][];         // locked tiles that had their lock removed (not cleared)
 }
 
 export interface NukeCrossResult {
@@ -83,6 +85,26 @@ export interface FlyingTileDescriptor {
   from: Position;
   to: Position;
   flyThrough: boolean;
+}
+
+// Floating "+N" score indicator, positioned in arena pixel coordinates.
+export interface ScorePopup {
+  id: number;
+  x: number;
+  y: number;
+  text: string;
+  tier: number; // combo multiplier at spawn time — drives size/color
+}
+
+export interface ShakeState {
+  tier: 'small' | 'big';
+  id: number;
+}
+
+export interface Announcement {
+  text: string;
+  id: number;
+  color?: string; // banner glow tint (e.g. wiped tile's color); default is nuke red-orange
 }
 
 export interface FrozenPendingRows {
@@ -114,6 +136,7 @@ export type GridMode = '9x9';
 export type Screen = 'menu' | 'game' | 'howToPlay' | 'settings';
 export type FlyingSource = 'left' | 'right' | 'top' | 'bottom' | null;
 export type PendingKey = 'leftPending' | 'rightPending' | 'topPending' | 'bottomPending';
+export type PendingSide = 'left' | 'right' | 'top' | 'bottom';
 
 export interface GameState {
   gridMode: GridMode;
@@ -142,6 +165,15 @@ export interface GameState {
   lastVerticalSide: VerticalSide;
   lastHorizontalSide: HorizontalSide;
   colorPalette: PaletteId;
+  nukeCharge: number;        // 0..NUKE_CHARGE_MAX — manual nuke fires when full
+  rerollArmed: boolean;      // true while the player is picking a strip to reroll
+  turnsUntilReroll: number;  // 0 = reroll ready
+  turnClearedTiles: number;  // tiles cleared so far this turn (drives clean-sweep bonus)
+  cleanSweepAwarded: boolean; // one clean-sweep award per turn
+  scorePopups: ScorePopup[];
+  shake: ShakeState | null;
+  announcement: Announcement | null;
+  soundOn: boolean;
 }
 
 export interface GameActions {
@@ -150,6 +182,10 @@ export interface GameActions {
   setGridMode: (mode: GridMode) => void;
   setColorPalette: (id: PaletteId) => void;
   triggerPush: (direction: Direction) => void;
+  fireNuke: () => void;
+  toggleRerollArm: () => void;
+  rerollStrip: (side: PendingSide) => void;
+  setSoundOn: (on: boolean) => void;
 }
 
 export type GameStore = GameState & GameActions;

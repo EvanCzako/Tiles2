@@ -28,8 +28,11 @@ export function pushFromLeft(grid: Grid, leftPending: number[], cfg: GridCfg = D
       newGrid[row][CENTER_COL] = tileVal;
       landings.push({ pendingIdx: i, row, col: CENTER_COL, merged: false });
     } else if (leftmost > 0) {
-      newGrid[row][leftmost - 1] = tileVal;
-      landings.push({ pendingIdx: i, row, col: leftmost - 1, merged: false });
+      // Stop just before the nearest tile, but never travel past CENTER_COL — an
+      // immovable tile (e.g. a stone) beyond center must not pull the landing across it.
+      const col = Math.min(leftmost - 1, CENTER_COL);
+      newGrid[row][col] = tileVal;
+      landings.push({ pendingIdx: i, row, col, merged: false });
     } else {
       blockedIndices.push(i);
       continue;
@@ -65,8 +68,10 @@ export function pushFromRight(grid: Grid, rightPending: number[], cfg: GridCfg =
       newGrid[row][CENTER_COL] = tileVal;
       landings.push({ pendingIdx: i, row, col: CENTER_COL, merged: false });
     } else if (rightmost < COLS - 1) {
-      newGrid[row][rightmost + 1] = tileVal;
-      landings.push({ pendingIdx: i, row, col: rightmost + 1, merged: false });
+      // Stop just before the nearest tile, but never travel past CENTER_COL.
+      const col = Math.max(rightmost + 1, CENTER_COL);
+      newGrid[row][col] = tileVal;
+      landings.push({ pendingIdx: i, row, col, merged: false });
     } else {
       blockedIndices.push(i);
       continue;
@@ -95,8 +100,10 @@ export function pushFromTop(grid: Grid, topPending: number[], cfg: GridCfg = DEF
       newGrid[CENTER_ROW][col] = tileVal;
       landings.push({ pendingIdx: i, row: CENTER_ROW, col, merged: false });
     } else if (topmost > 0) {
-      newGrid[topmost - 1][col] = tileVal;
-      landings.push({ pendingIdx: i, row: topmost - 1, col, merged: false });
+      // Stop just before the nearest tile, but never travel past CENTER_ROW.
+      const r = Math.min(topmost - 1, CENTER_ROW);
+      newGrid[r][col] = tileVal;
+      landings.push({ pendingIdx: i, row: r, col, merged: false });
     } else {
       blockedIndices.push(i);
       continue;
@@ -125,8 +132,10 @@ export function pushFromBottom(grid: Grid, bottomPending: number[], cfg: GridCfg
       newGrid[CENTER_ROW][col] = tileVal;
       landings.push({ pendingIdx: i, row: CENTER_ROW, col, merged: false });
     } else if (bottommost < ROWS - 1) {
-      newGrid[bottommost + 1][col] = tileVal;
-      landings.push({ pendingIdx: i, row: bottommost + 1, col, merged: false });
+      // Stop just before the nearest tile, but never travel past CENTER_ROW.
+      const r = Math.max(bottommost + 1, CENTER_ROW);
+      newGrid[r][col] = tileVal;
+      landings.push({ pendingIdx: i, row: r, col, merged: false });
     } else {
       blockedIndices.push(i);
       continue;

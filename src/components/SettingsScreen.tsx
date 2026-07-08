@@ -1,9 +1,11 @@
 import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
-import { GRID_CONFIGS, PALETTE_IDS, PALETTE_LABELS, getTileColor } from '../gameLogic';
+import { PALETTE_IDS, PALETTE_LABELS, getTileColor } from '../gameLogic';
 import type { Screen, GridMode } from '../types';
 
-const GRID_MODES = Object.keys(GRID_CONFIGS) as GridMode[];
+// Only modes the GridMode type actually allows; the section hides itself
+// when there is nothing to choose between.
+const GRID_MODES: GridMode[] = ['9x9'];
 const SWATCH_VALUES = [1, 2, 3, 4, 5, 6, 7];
 
 interface SettingsScreenProps {
@@ -11,17 +13,27 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({ navigate }: SettingsScreenProps) {
-  const { gridMode, setGridMode, highScore, resetHighScore, colorPalette, setColorPalette } =
-    useGameStore(
-      useShallow((s) => ({
-        gridMode: s.gridMode,
-        setGridMode: s.setGridMode,
-        highScore: s.highScore,
-        resetHighScore: s.resetHighScore,
-        colorPalette: s.colorPalette,
-        setColorPalette: s.setColorPalette,
-      }))
-    );
+  const {
+    gridMode,
+    setGridMode,
+    highScore,
+    resetHighScore,
+    colorPalette,
+    setColorPalette,
+    soundOn,
+    setSoundOn,
+  } = useGameStore(
+    useShallow((s) => ({
+      gridMode: s.gridMode,
+      setGridMode: s.setGridMode,
+      highScore: s.highScore,
+      resetHighScore: s.resetHighScore,
+      colorPalette: s.colorPalette,
+      setColorPalette: s.setColorPalette,
+      soundOn: s.soundOn,
+      setSoundOn: s.setSoundOn,
+    }))
+  );
 
   return (
     <div className="settings-screen">
@@ -30,21 +42,24 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
         <h2 className="screen-heading">Settings</h2>
       </div>
       <div className="settings-content">
-        <div className="settings-section">
-          <p className="settings-label">Grid Size</p>
-          <div className="settings-mode-row">
-            {GRID_MODES.map((mode) => (
-              <button
-                key={mode}
-                className={`mode-btn${gridMode === mode ? ' active' : ''}`}
-                onClick={() => setGridMode(mode)}
-              >
-                {mode}
-              </button>
-            ))}
+        <div className="settings-card">
+          <div className="settings-row">
+            <div className="settings-row-text">
+              <p className="settings-label">Sound</p>
+              <p className="settings-sublabel">Match blips, booms &amp; chimes</p>
+            </div>
+            <button
+              className={`toggle${soundOn ? ' toggle--on' : ''}`}
+              onClick={() => setSoundOn(!soundOn)}
+              aria-pressed={soundOn}
+              aria-label="Toggle sound"
+            >
+              <span className="toggle-knob" />
+            </button>
           </div>
         </div>
-        <div className="settings-section">
+
+        <div className="settings-card">
           <p className="settings-label">Color Theme</p>
           <p className="settings-sublabel">Color-vision accessibility</p>
           <div className="palette-list">
@@ -68,12 +83,34 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
             ))}
           </div>
         </div>
-        <div className="settings-section">
-          <p className="settings-label">High Score</p>
-          <p className="settings-high-score">{highScore}</p>
-          <button className="settings-reset-btn" onClick={resetHighScore}>
-            Reset High Score
-          </button>
+
+        {GRID_MODES.length > 1 && (
+          <div className="settings-card">
+            <p className="settings-label">Grid Size</p>
+            <div className="settings-mode-row">
+              {GRID_MODES.map((mode) => (
+                <button
+                  key={mode}
+                  className={`mode-btn${gridMode === mode ? ' active' : ''}`}
+                  onClick={() => setGridMode(mode)}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="settings-card">
+          <div className="settings-row">
+            <div className="settings-row-text">
+              <p className="settings-label">High Score</p>
+              <p className="settings-high-score">{highScore.toLocaleString()}</p>
+            </div>
+            <button className="settings-reset-btn" onClick={resetHighScore}>
+              Reset
+            </button>
+          </div>
         </div>
       </div>
     </div>

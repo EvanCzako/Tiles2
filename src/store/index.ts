@@ -11,7 +11,7 @@ import type {
   FlyingSource,
   GameStore,
 } from '../types';
-import { CELL, GAP, ANIM_MS, AUTO_MOVE_MS } from '../constants';
+import { CELL, GAP, ANIM_MS } from '../constants';
 import {
   cellPos,
   leftPendingPos,
@@ -25,10 +25,16 @@ import {
   pushFromTop,
   pushFromBottom,
   checkGameOver,
+  createInitialPending,
+  NUKE_CHARGE_MAX,
+  REROLL_COOLDOWN,
 } from '../game';
-import { initState, buildFrozenSnapshot, getAvailableDirections } from './init';
-import { saveHighScore, saveColorPalette } from './persistence';
-import { runCollapseLoop } from './animations';
+import { initState, buildFrozenSnapshot, scheduleAutoMoveIfForced } from './init';
+import { saveHighScore, saveColorPalette, saveSoundOn, loadSoundOn } from './persistence';
+import { runCollapseLoop, nukeCenterAndSettle } from './animations';
+import { setSoundEnabled, playPush, playGameOver, playReroll } from '../sound';
+
+setSoundEnabled(loadSoundOn());
 
 const useGameStore = create<GameStore>((set, get) => ({
   ...initState(),
@@ -37,11 +43,54 @@ const useGameStore = create<GameStore>((set, get) => ({
   resetHighScore() { saveHighScore(get().gridMode, 0); set({ highScore: 0 }); },
   setGridMode(mode: GridMode) { set(initState(mode)); },
   setColorPalette(id) { saveColorPalette(id); set({ colorPalette: id }); },
+  setSoundOn(on) { saveSoundOn(on); setSoundEnabled(on); set({ soundOn: on }); },
+
+  // Fire the center-cross nuke once the charge meter is full.
+  fireNuke() {
+    const s = get();
+    if (s.animating || s.gameOver || s.nukeCharge < NUKE_CHARGE_MAX) return;
+    set({
+      animating: true,
+      nukeCharge: 0,
+      rerollArmed: false,
+      turnClearedTiles: 0,
+      cleanSweepAwarded: false,
+    });
+    nukeCenterAndSettle(s.grid, {}, get, set, s.lastVerticalSide, s.lastHorizontalSide);
+  },
+
+  // Arm/disarm strip-pick mode for the reroll ability.
+  toggleRerollArm() {
+    const s = get();
+    if (s.gameOver || s.turnsUntilReroll > 0) return;
+    set({ rerollArmed: !s.rerollArmed });
+  },
+
+  // Reroll one pending strip (chosen by tapping it while armed).
+  rerollStrip(side) {
+    const s = get();
+    if (!s.rerollArmed || s.turnsUntilReroll > 0 || s.animating || s.gameOver) return;
+    playReroll();
+    set({
+      [`${side}Pending`]: createInitialPending(s.cfg),
+      rerollArmed: false,
+      turnsUntilReroll: REROLL_COOLDOWN,
+    });
+    // Spending the reroll may leave the player truly forced — resume auto-move.
+    scheduleAutoMoveIfForced(get);
+  },
 
   triggerPush(direction: Direction) {
     const s = get();
     if (s.animating || s.gameOver) return;
-    set({ combo: 1 });
+    set({
+      combo: 1,
+      rerollArmed: false,
+      turnsUntilReroll: Math.max(0, s.turnsUntilReroll - 1),
+      turnClearedTiles: 0,
+      cleanSweepAwarded: false,
+    });
+    playPush();
 
     const { cfg, layout } = s;
     let pushFn: (grid: Grid, pending: number[], cfg: GridCfg) => ReturnType<typeof pushFromLeft>;
@@ -105,13 +154,9 @@ const useGameStore = create<GameStore>((set, get) => ({
         const newHighScore = Math.max(get().score, get().highScore);
         saveHighScore(get().gridMode, newHighScore);
         set({ gameOver: true, highScore: newHighScore });
+        playGameOver();
       } else {
-        const available = getAvailableDirections(get());
-        if (available.length === 1) {
-          setTimeout(() => {
-            if (!get().gameOver && !get().animating) get().triggerPush(available[0]);
-          }, AUTO_MOVE_MS);
-        }
+        scheduleAutoMoveIfForced(get);
       }
       return;
     }
@@ -135,5 +180,11 @@ const useGameStore = create<GameStore>((set, get) => ({
     }, ANIM_MS + 30);
   },
 }));
+
+// Test/debug handle for E2E drivers (the game is fully client-side, so this
+// exposes nothing a devtools user couldn't already reach).
+if (typeof window !== 'undefined') {
+  (window as unknown as { __untiledStore: typeof useGameStore }).__untiledStore = useGameStore;
+}
 
 export default useGameStore;

@@ -1,5 +1,5 @@
 import useGameStore from '../store';
-import { CELL, GAP } from '../constants';
+import { CELL, GAP, COMBO_COLORS } from '../constants';
 import Tile from './Tile';
 import FlyingTile from './FlyingTile';
 import GameOverOverlay from './GameOverOverlay';
@@ -30,10 +30,14 @@ export default function Arena({ navigate }: ArenaProps) {
     pendingCommit,
     cfg,
     layout,
+    scorePopups,
+    rerollArmed,
+    rerollStrip,
   } = useGameStore();
 
   const blockedKey = pendingCommit?.pendingKey ?? null;
   const blockedSet = pendingCommit ? new Set(pendingCommit.blockedIndices) : new Set<number>();
+  const armedClass = rerollArmed ? ' pending--armed' : '';
 
   const { sideOffset, gridPx, gridTopOffset, pendingColTop, topPendingLeft, bottomPendingY } =
     layout;
@@ -62,8 +66,28 @@ export default function Arena({ navigate }: ArenaProps) {
         />
       ))}
 
+      {/* Floating score popups */}
+      {scorePopups.map((p) => (
+        <div
+          key={p.id}
+          className="score-popup"
+          style={{
+            left: p.x,
+            top: p.y,
+            color: COMBO_COLORS[Math.min(p.tier, 5) - 1],
+            fontSize: `${1 + Math.min(p.tier, 5) * 0.22}rem`,
+          }}
+        >
+          {p.text}
+        </div>
+      ))}
+
       {/* Top pending */}
-      <div className="pending-row" style={{ left: sideOffset + topPendingLeft, top: 0 }}>
+      <div
+        className={`pending-row${armedClass}`}
+        style={{ left: sideOffset + topPendingLeft, top: 0 }}
+        onClick={rerollArmed ? () => rerollStrip('top') : undefined}
+      >
         {topPending.map((val, i) => {
           const isBlocked = blockedKey === 'topPending' && blockedSet.has(i);
           const showVal = !(flyingSource === 'top' && !isBlocked);
@@ -72,7 +96,11 @@ export default function Arena({ navigate }: ArenaProps) {
       </div>
 
       {/* Left pending */}
-      <div className="pending-col" style={{ left: 0, top: pendingColTop }}>
+      <div
+        className={`pending-col${armedClass}`}
+        style={{ left: 0, top: pendingColTop }}
+        onClick={rerollArmed ? () => rerollStrip('left') : undefined}
+      >
         {leftPending.map((val, i) => {
           const isBlocked = blockedKey === 'leftPending' && blockedSet.has(i);
           const showVal = !(flyingSource === 'left' && !isBlocked);
@@ -118,8 +146,9 @@ export default function Arena({ navigate }: ArenaProps) {
 
       {/* Right pending */}
       <div
-        className="pending-col"
+        className={`pending-col${armedClass}`}
         style={{ left: sideOffset + gridPx + GAP * 4, top: pendingColTop }}
+        onClick={rerollArmed ? () => rerollStrip('right') : undefined}
       >
         {rightPending.map((val, i) => {
           const isBlocked = blockedKey === 'rightPending' && blockedSet.has(i);
@@ -130,8 +159,9 @@ export default function Arena({ navigate }: ArenaProps) {
 
       {/* Bottom pending */}
       <div
-        className="pending-row"
+        className={`pending-row${armedClass}`}
         style={{ left: sideOffset + topPendingLeft, top: bottomPendingY }}
+        onClick={rerollArmed ? () => rerollStrip('bottom') : undefined}
       >
         {bottomPending.map((val, i) => {
           const isBlocked = blockedKey === 'bottomPending' && blockedSet.has(i);

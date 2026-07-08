@@ -17,7 +17,10 @@ import {
   checkGameOver,
   nextCombo,
   MAX_COMBO,
-  NUKE_COMBO,
+  NUKE_CHARGE_MAX,
+  REROLL_COOLDOWN,
+  CLEAN_SWEEP_BONUS_PER_TILE,
+  isPlayAreaEmpty,
   nukeCrossScore,
   BOMB_FLAG,
   isBomb,
@@ -986,9 +989,10 @@ describe('annihilateAdjacent', () => {
       [CENTER_ROW + 1, CENTER_COL, 2],
       [CENTER_ROW - 1, CENTER_COL + 2, 2], // isolated, not connected to the group
     ]);
-    const { annihilatedCells, score } = annihilateAdjacent(grid);
+    const { annihilatedCells, score, boardWipeValues } = annihilateAdjacent(grid);
     expect(annihilatedCells.length).toBe(4);
     expect(score).toBe(4 * 2);
+    expect(boardWipeValues).toEqual([2]);
   });
 
   test('two separate groups of 2 of the same value do NOT trigger board-wide wipe', () => {
@@ -1000,10 +1004,11 @@ describe('annihilateAdjacent', () => {
       [CENTER_ROW + 2, CENTER_COL + 1, 3],
       [CENTER_ROW - 1, CENTER_COL - 1, 3], // isolated — NOT wiped
     ]);
-    const { annihilatedCells, score } = annihilateAdjacent(grid);
+    const { annihilatedCells, score, boardWipeValues } = annihilateAdjacent(grid);
     // only the two pairs (4 cells) annihilate; the isolated tile survives
     expect(annihilatedCells.length).toBe(4);
     expect(score).toBe(4 * 3);
+    expect(boardWipeValues).toEqual([]);
   });
 
   test('board-wide wipe scores every matching tile, not just the triggering group', () => {
@@ -1227,10 +1232,6 @@ describe('nukeCrossScore', () => {
     expect(score).toBe(1);
   });
 
-  test('fifth cascade reaches NUKE_COMBO — nuke condition', () => {
-    expect(nextCombo(5)).toBe(NUKE_COMBO);
-    expect(nextCombo(NUKE_COMBO)).toBe(NUKE_COMBO);
-  });
 });
 
 // ── Combo multiplier ─────────────────────────────────────────────────────────
@@ -1239,23 +1240,50 @@ describe('nextCombo', () => {
     expect(nextCombo(1)).toBe(2);
   });
 
-  test('increments correctly: 2 → 3 → 4 → 5 → 6', () => {
+  test('increments correctly: 2 → 3 → 4 → 5', () => {
     expect(nextCombo(2)).toBe(3);
     expect(nextCombo(3)).toBe(4);
     expect(nextCombo(4)).toBe(5);
-    expect(nextCombo(5)).toBe(6);
   });
 
-  test('caps at NUKE_COMBO (6)', () => {
-    expect(nextCombo(6)).toBe(6);
-    expect(nextCombo(10)).toBe(6);
+  test('caps at MAX_COMBO (5)', () => {
+    expect(nextCombo(5)).toBe(5);
+    expect(nextCombo(10)).toBe(5);
   });
 
-  test('MAX_COMBO is 5, NUKE_COMBO is 6', () => {
+  test('ability constants: MAX_COMBO 5, positive nuke charge, 10-turn reroll', () => {
     expect(MAX_COMBO).toBe(5);
-    expect(NUKE_COMBO).toBe(6);
+    expect(NUKE_CHARGE_MAX).toBeGreaterThan(0);
+    expect(REROLL_COOLDOWN).toBe(10);
+    expect(CLEAN_SWEEP_BONUS_PER_TILE).toBeGreaterThan(0);
+  });
+});
+
+// ── Clean sweep detection ─────────────────────────────────────────────────────
+describe('isPlayAreaEmpty', () => {
+  test('fully empty grid is a clean sweep', () => {
+    expect(isPlayAreaEmpty(makeGrid([]), CFG)).toBe(true);
   });
 
+  test('tiles only in corner blocks still count as a clean sweep', () => {
+    const grid = makeGrid([
+      [0, 0, 3],
+      [1, 1, 5],
+      [ROWS - 1, COLS - 1, 2],
+      [0, COLS - 1, 7],
+    ]);
+    expect(isPlayAreaEmpty(grid, CFG)).toBe(true);
+  });
+
+  test('a single tile anywhere in the play area is not a clean sweep', () => {
+    expect(isPlayAreaEmpty(makeGrid([[CENTER_ROW, CENTER_COL, 1]]), CFG)).toBe(false);
+    // edge of the cross: pending-aligned row, corner-adjacent column
+    expect(isPlayAreaEmpty(makeGrid([[PENDING_ROW_START, 0, 1]]), CFG)).toBe(false);
+    expect(isPlayAreaEmpty(makeGrid([[0, PENDING_COL_START, 1]]), CFG)).toBe(false);
+  });
+});
+
+describe('combo scoring', () => {
   test('cascading three waves: 1x → 2x → 3x', () => {
     let combo = 1;
     combo = nextCombo(combo);

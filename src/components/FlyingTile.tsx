@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CELL, ANIM_MS } from '../constants';
-import { getTileColor, baseValue, isBomb } from '../gameLogic';
+import { getTileColor, baseValue, isBomb, isLocked, isStone } from '../gameLogic';
 import useGameStore from '../store';
 
 interface FlyingTileProps {
@@ -24,6 +24,8 @@ export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough =
   const { bg, text } = getTileColor(value, palette);
   const base = baseValue(value);
   const bomb = isBomb(value);
+  const locked = isLocked(value);
+  const stone = isStone(value);
   const dx = fromX - toX;
   const dy = fromY - toY;
 
@@ -50,9 +52,17 @@ export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough =
           : 'none',
         pointerEvents: 'none',
         zIndex: 20,
+        outline: stone ? '2px solid rgba(255,255,255,0.3)' : undefined,
       }}
+      className={locked ? 'tile--locked' : stone ? 'tile--stone' : undefined}
     >
-      {bomb ? <span style={{ fontSize: CELL * 0.5 }}>💣</span> : base}
+      {bomb ? (
+        <span style={{ fontSize: CELL * 0.5 }}>💣</span>
+      ) : locked ? (
+        <span style={{ fontSize: CELL * 0.5 }}>🔒</span>
+      ) : stone ? (
+        <span style={{ fontSize: CELL * 0.5 }}>🪨</span>
+      ) : base}
     </div>
   );
 }

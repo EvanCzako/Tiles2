@@ -1,21 +1,75 @@
-import type { Grid, GameStore, VerticalSide, HorizontalSide } from '../types';
+import type { Grid, GameStore, VerticalSide, HorizontalSide, ShakeState } from '../types';
 import { cellPos } from '../layout';
-import { ANIM_MS, FLASH_MS, AUTO_MOVE_MS } from '../constants';
+import { ANIM_MS, FLASH_MS, CELL, POPUP_MS, SHAKE_MS, ANNOUNCE_MS } from '../constants';
 import {
   settleCorners,
   annihilateAdjacent,
   collapseGrid,
   checkGameOver,
+  isPlayAreaEmpty,
   nextCombo,
   nukeCrossScore,
+  getTileColor,
   MAX_COMBO,
-  NUKE_COMBO,
+  NUKE_CHARGE_MAX,
+  CLEAN_SWEEP_BONUS_PER_TILE,
 } from '../game';
-import { buildFrozenSnapshot, getAvailableDirections } from './init';
+import { buildFrozenSnapshot, scheduleAutoMoveIfForced } from './init';
 import { saveHighScore } from './persistence';
+import {
+  playMatch,
+  playBoardWipe,
+  playBomb,
+  playNuke,
+  playNukeReady,
+  playCleanSweep,
+  playGameOver,
+} from '../sound';
 
 type ZustandSet = (partial: Partial<GameStore>) => void;
 type ZustandGet = () => GameStore;
+
+// ── Juice helpers ──────────────────────────────────────────────────────────
+let popupSeq = 0;
+export function spawnScorePopup(
+  cells: [number, number][],
+  text: string,
+  tier: number,
+  get: ZustandGet,
+  set: ZustandSet
+): void {
+  if (cells.length === 0) return;
+  const layout = get().layout;
+  let sx = 0, sy = 0;
+  for (const [r, c] of cells) {
+    const p = cellPos(r, c, layout);
+    sx += p.x;
+    sy += p.y;
+  }
+  const x = sx / cells.length + CELL / 2;
+  const y = sy / cells.length + CELL / 2;
+  const id = ++popupSeq;
+  set({ scorePopups: [...get().scorePopups, { id, x, y, text, tier }] });
+  setTimeout(() => set({ scorePopups: get().scorePopups.filter((p) => p.id !== id) }), POPUP_MS);
+}
+
+let announceSeq = 0;
+function announce(text: string, get: ZustandGet, set: ZustandSet, color?: string): void {
+  const id = ++announceSeq;
+  set({ announcement: { text, id, color } });
+  setTimeout(() => {
+    if (get().announcement?.id === id) set({ announcement: null });
+  }, ANNOUNCE_MS);
+}
+
+let shakeSeq = 0;
+function triggerShake(tier: ShakeState['tier'], get: ZustandGet, set: ZustandSet): void {
+  const id = ++shakeSeq;
+  set({ shake: { tier, id } });
+  setTimeout(() => {
+    if (get().shake?.id === id) set({ shake: null });
+  }, SHAKE_MS);
+}
 
 // ── End-of-turn helper ─────────────────────────────────────────────────────
 // Two-phase corner settlement: vertical gravity first, then horizontal.
@@ -28,6 +82,24 @@ export function endTurn(
   set: ZustandSet
 ): void {
   const curCfg = get().cfg;
+
+  // ── Clean sweep — the entire play area was emptied this turn ─────────────
+  // Awarded once per turn, before corner settlement (corners refill themselves
+  // and are excluded from the check). Bonus scales with how much was cleared.
+  if (!get().cleanSweepAwarded && get().turnClearedTiles > 0 && isPlayAreaEmpty(grid, curCfg)) {
+    const mult = Math.min(get().combo, MAX_COMBO);
+    const bonus = CLEAN_SWEEP_BONUS_PER_TILE * get().turnClearedTiles * mult;
+    playCleanSweep();
+    triggerShake('big', get, set);
+    announce('CLEAN SWEEP!', get, set, '#ffcc00');
+    spawnScorePopup([[curCfg.CENTER_ROW, curCfg.CENTER_COL]], `+${bonus}`, mult, get, set);
+    set({
+      score: get().score + bonus,
+      nukeCharge: NUKE_CHARGE_MAX,
+      cleanSweepAwarded: true,
+    });
+  }
+
   const { grid: settledGrid, movedGrid, midGrid, verticalMoves, horizontalMoves } = settleCorners(grid, curCfg);
 
   const finalize = (finalGrid: Grid) => {
@@ -44,13 +116,9 @@ export function endTurn(
       const newHighScore = Math.max(get().score, get().highScore);
       saveHighScore(get().gridMode, newHighScore);
       set({ gameOver: true, highScore: newHighScore });
+      playGameOver();
     } else {
-      const available = getAvailableDirections(get());
-      if (available.length === 1) {
-        setTimeout(() => {
-          if (!get().gameOver && !get().animating) get().triggerPush(available[0]);
-        }, AUTO_MOVE_MS);
-      }
+      scheduleAutoMoveIfForced(get);
     }
   };
 
@@ -64,7 +132,7 @@ export function endTurn(
         const { annihilatedCells } = annihilateAdjacent(settledGrid, curCfg);
         if (annihilatedCells.length === 0) { finalize(settledGrid); return; }
         const s = get();
-        runCollapseLoop(settledGrid, pendingPayload, get, set, s.lastVerticalSide, s.lastHorizontalSide, 1, false);
+        runCollapseLoop(settledGrid, pendingPayload, get, set, s.lastVerticalSide, s.lastHorizontalSide, 1);
       })
     );
   };
@@ -112,6 +180,8 @@ export function endTurn(
 }
 
 // ── Collapse + annihilate loop ─────────────────────────────────────────────
+// chargeNuke=false during nuke-initiated cascades so a fired nuke can't
+// immediately re-charge itself off its own fallout.
 export function runCollapseLoop(
   grid: Grid,
   pendingPayload: Partial<GameStore>,
@@ -120,7 +190,7 @@ export function runCollapseLoop(
   lastVerticalSide: VerticalSide = 'top',
   lastHorizontalSide: HorizontalSide = 'left',
   combo: number = 1,
-  nukeUsed: boolean = false
+  chargeNuke: boolean = true
 ): void {
   const { cfg } = get();
   const { grid: collapsedGrid, midGrid, gravityMoves, horizontalMoves } =
@@ -132,7 +202,7 @@ export function runCollapseLoop(
     const curCfg = get().cfg;
     const {
       annihilatedCells, grid: annGrid, score: annScore,
-      boardWipeGroupCells, boardWipeSpreadCells, regularCells, bombBlastCells,
+      boardWipeValues, boardWipeGroupCells, boardWipeSpreadCells, regularCells, bombBlastCells, unlockedCells,
     } = annihilateAdjacent(settled, curCfg);
     const bombFlash = new Set(bombBlastCells.map(([r, c]) => `${r},${c}`));
 
@@ -144,17 +214,34 @@ export function runCollapseLoop(
     const nextCombo_ = nextCombo(combo);
     const proceed = () => {
       set({ grid: annGrid, annihilateSet: new Set(), boardWipeFlashSet: new Set(), bombFlashSet: new Set() });
-      if (nextCombo_ === NUKE_COMBO && !nukeUsed) {
-        nukeCenterAndSettle(annGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide);
-      } else {
-        runCollapseLoop(annGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide, nextCombo_, nukeUsed);
-      }
+      runCollapseLoop(annGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide, nextCombo_, chargeNuke);
     };
 
+    const mult = Math.min(combo, MAX_COMBO);
+    const gained = annScore * mult;
+    const prevCharge = get().nukeCharge;
+    const newCharge = chargeNuke ? Math.min(NUKE_CHARGE_MAX, prevCharge + mult) : prevCharge;
     set({
-      score: get().score + annScore * Math.min(combo, MAX_COMBO),
-      combo: Math.min(combo, MAX_COMBO),
+      score: get().score + gained,
+      combo: mult,
+      nukeCharge: newCharge,
+      // unlocked tiles stay on the board, so they don't count as cleared
+      turnClearedTiles: get().turnClearedTiles + annihilatedCells.length - unlockedCells.length,
     });
+
+    playMatch(mult);
+    if (bombBlastCells.length > 0) {
+      playBomb();
+      triggerShake('small', get, set);
+    }
+    if (boardWipeValues.length > 0) {
+      playBoardWipe();
+      // "ALL 5s!" — tinted with the wiped value's tile color
+      const label = boardWipeValues.map((v) => `${v}s`).join(' & ');
+      announce(`ALL ${label}!`, get, set, getTileColor(boardWipeValues[0], get().colorPalette).bg);
+    }
+    if (newCharge === NUKE_CHARGE_MAX && prevCharge < NUKE_CHARGE_MAX) playNukeReady();
+    if (gained > 0) spawnScorePopup(annihilatedCells, `+${gained}`, mult, get, set);
 
     if (boardWipeGroupCells.length > 0) {
       // Phase 1: group cells flash immediately in their tile color
@@ -235,7 +322,7 @@ export function runCollapseLoop(
   );
 }
 
-// ── Center nuke triggered on reaching NUKE_COMBO ──────────────────────────
+// ── Center-cross nuke, fired manually once the charge meter is full ────────
 export function nukeCenterAndSettle(
   grid: Grid,
   pendingPayload: Partial<GameStore>,
@@ -257,17 +344,27 @@ export function nukeCenterAndSettle(
 
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
+      playNuke();
+      triggerShake('big', get, set);
+      announce('NUKE!', get, set);
       set({
         score: get().score + centerScore * MAX_COMBO,
         combo: MAX_COMBO,
         nukeFlashSet: flashCells,
         nukeActive: true,
       });
+      if (centerScore > 0) {
+        spawnScorePopup(clearCells, `+${centerScore * MAX_COMBO}`, MAX_COMBO, get, set);
+      }
       setTimeout(() => {
         const nukedGrid = grid.map((row) => [...row]);
         for (const [r, c] of clearCells) nukedGrid[r][c] = 0;
-        set({ grid: nukedGrid, nukeFlashSet: new Set() });
-        runCollapseLoop(nukedGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide, MAX_COMBO, true);
+        set({
+          grid: nukedGrid,
+          nukeFlashSet: new Set(),
+          turnClearedTiles: get().turnClearedTiles + clearCells.length,
+        });
+        runCollapseLoop(nukedGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide, MAX_COMBO, false);
       }, FLASH_MS);
       setTimeout(() => set({ nukeActive: false }), 600);
     })
