@@ -1,4 +1,4 @@
-import type { Grid, GridCfg, GridMode, Direction, GameState, GameStore } from '../types';
+import type { Grid, GridCfg, GridMode, Direction, GameState } from '../types';
 import {
   GRID_CONFIGS,
   createInitialGrid,
@@ -9,7 +9,6 @@ import {
   pushFromBottom,
 } from '../game';
 import { getLayout } from '../layout';
-import { AUTO_MOVE_MS } from '../constants';
 import { loadHighScore, loadColorPalette, loadSoundOn } from './persistence';
 
 export function initState(mode: GridMode = '9x9'): GameState {
@@ -64,22 +63,8 @@ export function getAvailableDirections(s: { grid: Grid; cfg: GridCfg }): Directi
   return dirs;
 }
 
-// The player still has a meaningful alternative to swiping: an armed nuke.
-// While true, the single-direction auto-move must not fire — the "forced"
-// swipe isn't actually forced.
+// Kept for callers that gate UI on whether the player has an ability available
+// (e.g. suppressing hints). Auto-move was removed, so nothing schedules on it.
 export function canUseAbility(s: { nukeArmed: boolean }): boolean {
   return s.nukeArmed;
-}
-
-// Auto-push the only available direction after a short delay — but only when
-// the player truly has no other option. Re-checked at fire time in case an
-// ability became usable (or a turn started) while the timer was pending.
-export function scheduleAutoMoveIfForced(get: () => GameStore): void {
-  const s = get();
-  const available = getAvailableDirections(s);
-  if (available.length !== 1 || canUseAbility(s)) return;
-  setTimeout(() => {
-    const cur = get();
-    if (!cur.gameOver && !cur.animating && !canUseAbility(cur)) cur.triggerPush(available[0]);
-  }, AUTO_MOVE_MS);
 }

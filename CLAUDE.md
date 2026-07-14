@@ -152,7 +152,6 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 - `CELL = 52` px, `GAP = 4` px
 - `ANIM_MS = 220` ms (fly/collapse transition)
 - `FLASH_MS = 320` ms (annihilation/nuke flash hold)
-- `AUTO_MOVE_MS = 500` ms (delay before auto-move when only 1 direction available — **suppressed** while the player has a usable ability: an armed nuke; see `canUseAbility`/`scheduleAutoMoveIfForced` in `store/init.ts`.)
 - `POPUP_MS = 900` / `SHAKE_MS = 450` / `ANNOUNCE_MS = 1000` ms (juice element lifetimes)
 - `HEADER_H = 92` px (header 52 px + combo strip 40 px; used by `useScale` to compute available board space)
 - `COMBO_COLORS` (constants.ts) — combo color ramp shared by the combo badge and score popups
@@ -234,7 +233,7 @@ src/
     gameLogic.test.ts — pure logic tests (see Testing)
   store/          ← Zustand store, split by concern
     persistence.ts — localStorage high score helpers
-    init.ts       — initState, getAvailableDirections, canUseAbility, scheduleAutoMoveIfForced
+    init.ts       — initState, getAvailableDirections, canUseAbility (auto-move removed)
     animations.ts — endTurn, runCollapseLoop, nukeCenterAndSettle
     index.ts      — useGameStore (triggerPush + store creation)
   components/     ← React components

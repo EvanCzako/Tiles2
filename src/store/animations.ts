@@ -15,7 +15,6 @@ import {
   NUKE_CHARGE_MAX,
   CLEAN_SWEEP_BONUS_PER_TILE,
 } from '../game';
-import { scheduleAutoMoveIfForced } from './init';
 import { saveHighScore } from './persistence';
 import {
   playMatch,
@@ -118,8 +117,6 @@ export function endTurn(
       saveHighScore(get().gridMode, newHighScore);
       set({ gameOver: true, highScore: newHighScore });
       playGameOver();
-    } else {
-      scheduleAutoMoveIfForced(get);
     }
   };
 

@@ -27,7 +27,7 @@ import {
   checkGameOver,
   NUKE_DECAY_PER_PUSH,
 } from '../game';
-import { initState, scheduleAutoMoveIfForced } from './init';
+import { initState } from './init';
 import { saveHighScore, saveColorPalette, saveSoundOn, loadSoundOn } from './persistence';
 import { runCollapseLoop, nukeCenterAndSettle } from './animations';
 import { setSoundEnabled, playPush, playGameOver } from '../sound';
@@ -135,8 +135,6 @@ const useGameStore = create<GameStore>((set, get) => ({
         saveHighScore(get().gridMode, newHighScore);
         set({ gameOver: true, highScore: newHighScore });
         playGameOver();
-      } else {
-        scheduleAutoMoveIfForced(get);
       }
       return;
     }

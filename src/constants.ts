@@ -5,7 +5,6 @@ export const GAP = 4;
 // ── Animation timings ────────────────────────────────────────────────────────
 export const ANIM_MS = 220;
 export const FLASH_MS = 320;
-export const AUTO_MOVE_MS = 500;
 
 // ── Juice timings ────────────────────────────────────────────────────────────
 export const POPUP_MS = 900; // floating "+N" score popup lifetime
