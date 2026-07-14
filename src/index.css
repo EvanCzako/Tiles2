@@ -1,3 +1,27 @@
+/* ── Design tokens ───────────────────────────────────────────────────────────
+   Single source of truth for the UI palette (App.css). Near-duplicate literals
+   that had drifted (#3a3a5c/#3a3a6a, #2c2c50/#2e2e52, #1c1c38/#1e1e38,
+   #888888/#8888aa, #aaaacc/#a0a0cc) are merged into one token each.
+   Tile colors live in TS (getTileColor in game/tiles.ts) — not here. */
+:root {
+  --bg: #1a1a2e;            /* page background */
+  --surface: #14142a;       /* modal panels, toggle track */
+  --card: #1e1e38;          /* cards, buttons, stat rows */
+  --card-hover: #2a2a50;    /* hovered cards/buttons */
+  --card-raised: #272744;   /* secondary buttons */
+  --border: #3a3a6a;        /* interactive-element borders */
+  --border-soft: #2e2e52;   /* card borders */
+  --accent: #4488ee;        /* primary actions, links */
+  --accent-deep: #3a7bd5;   /* active/selected states */
+  --gold: #ffcc00;          /* best score, clean sweep */
+  --text-bright: #ffffff;
+  --text-strong: #c0c0ee;
+  --text: #b8b8d4;
+  --text-dim: #a0a0cc;
+  --text-muted: #8888aa;
+  --text-faint: #6a6a8a;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -6,7 +30,7 @@
 }
 
 body {
-  background: #1a1a2e;
+  background: var(--bg);
   display: flex;
   justify-content: center;
   align-items: flex-start;

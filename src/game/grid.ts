@@ -1,6 +1,6 @@
 import type { Grid, GridCfg } from '../types';
 import { DEFAULT_CFG } from './config';
-import { randTileSideExcluding2 } from './tiles';
+import { randTileSideExcluding } from './tiles';
 import { isCornerCell } from './corners';
 
 // True when every non-corner cell is empty — the "clean sweep" condition.
@@ -41,7 +41,7 @@ export function createInitialGrid(cfg: GridCfg = DEFAULT_CFG): Grid {
         const c = cols[ci];
         const above = ri > 0 ? grid[rows[ri - 1]][c] : -1;
         const left = ci > 0 ? grid[r][cols[ci - 1]] : -1;
-        grid[r][c] = randTileSideExcluding2(above, left);
+        grid[r][c] = randTileSideExcluding(above, left);
       }
     }
   };

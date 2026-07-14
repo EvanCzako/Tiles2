@@ -57,11 +57,11 @@ export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough =
       className={locked ? 'tile--locked' : stone ? 'tile--stone' : undefined}
     >
       {bomb ? (
-        <span style={{ fontSize: CELL * 0.5 }}>💣</span>
+        <span className="tile-special-glyph" style={{ fontSize: CELL * 0.5 }}>💣</span>
       ) : locked ? (
-        <span style={{ fontSize: CELL * 0.5 }}>🔒</span>
+        <span className="tile-special-glyph" style={{ fontSize: CELL * 0.5 }}>🔒</span>
       ) : stone ? (
-        <span style={{ fontSize: CELL * 0.5 }}>🪨</span>
+        <span className="tile-special-glyph" style={{ fontSize: CELL * 0.5 }}>🪨</span>
       ) : base}
     </div>
   );

@@ -254,7 +254,7 @@ scripts/
 | File | Role |
 |------|------|
 | `Arena.tsx` | Grid (+ 4 corner obstacle-zone frames) + 4 pending strips + flying tiles + score popups; reads `annihilateSet`, `boardWipeFlashSet`, `nukeFlashSet` to drive flash props on Tile |
-| `Tile.tsx` | Single tile div; props: `value`, `size`, `flashing`, `flashAnnihilate`, `flashBoardWipe`, `flashNuke`, `centerColumn` |
+| `Tile.tsx` | Single tile div; props: `value`, `size`, `flashAnnihilate`, `flashBoardWipe`, `flashBomb`, `flashNuke`, `centerColumn` |
 | `FlyingTile.tsx` | Animated flying tile (CSS transition via double-rAF) |
 | `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + combo strip (nuke/combo/spacer) + arena; applies shake class and announcement overlay |
 | `GameHeader.tsx` | Score / highScore display; title is clickable (navigates to menu via `onMenu` prop) |

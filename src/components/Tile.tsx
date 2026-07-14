@@ -5,7 +5,6 @@ import useGameStore from '../store';
 interface TileProps {
   value: number;
   size?: number;
-  flashing?: boolean;
   flashAnnihilate?: boolean;
   flashBoardWipe?: boolean;
   flashBomb?: boolean;
@@ -16,7 +15,6 @@ interface TileProps {
 export default function Tile({
   value,
   size = CELL,
-  flashing = false,
   flashAnnihilate = false,
   flashBoardWipe = false,
   flashBomb = false,
@@ -29,6 +27,7 @@ export default function Tile({
   const bomb = isBomb(value);
   const locked = isLocked(value);
   const stone = isStone(value);
+  const anyFlash = flashAnnihilate || flashBoardWipe || flashBomb || flashNuke;
   const flashClass = flashNuke
     ? ' tile--flash-nuke'
     : flashBomb
@@ -40,12 +39,14 @@ export default function Tile({
           : '';
   return (
     <div
-      className={`tile${value > 0 ? ' tile--filled' : ''}${bomb ? ' tile--bomb' : ''}${locked ? ' tile--locked' : ''}${stone ? ' tile--stone' : ''}${flashing ? ' tile--flash' : ''}${flashClass}`}
+      className={`tile${locked ? ' tile--locked' : ''}${stone ? ' tile--stone' : ''}${flashClass}`}
       style={{
         position: 'relative',
         width: size,
         height: size,
-        background: value > 0 ? bg : centerColumn && !flashAnnihilate && !flashBoardWipe && !flashBomb && !flashNuke ? 'transparent' : bg,
+        // Empty cells on the center cross stay transparent so the cross tint
+        // shows through — unless a flash animation needs the cell visible.
+        background: value === 0 && centerColumn && !anyFlash ? 'transparent' : bg,
         color: text,
         fontSize: size * 0.35,
       }}

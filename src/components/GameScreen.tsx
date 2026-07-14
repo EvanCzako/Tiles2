@@ -98,7 +98,6 @@ export default function GameScreen({ navigate }: GameScreenProps) {
           </div>
         )}
       </div>
-      <div className="swipe-zone" />
       {gameOver && (
         <GameOverOverlay
           score={score}

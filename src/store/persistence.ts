@@ -1,14 +1,14 @@
 import type { PaletteId } from '../types';
+import { PALETTE_IDS } from '../game';
 
-const LS_KEY = 'tilesHighScores';
+const SCORES_KEY = 'tilesHighScores';
 const PALETTE_KEY = 'tilesColorPalette';
 const SOUND_KEY = 'tilesSoundOn';
-const VALID_PALETTES: PaletteId[] = ['default', 'deuteranopia', 'protanopia', 'tritanopia', 'monochrome'];
 
 export function loadHighScores(): Record<string, number> {
   if (typeof window === 'undefined') return {};
   try {
-    const saved = localStorage.getItem(LS_KEY);
+    const saved = localStorage.getItem(SCORES_KEY);
     return saved ? (JSON.parse(saved) as Record<string, number>) : {};
   } catch {
     return {};
@@ -23,13 +23,13 @@ export function saveHighScore(mode: string, score: number): void {
   if (typeof window === 'undefined') return;
   const scores = loadHighScores();
   scores[mode] = score;
-  localStorage.setItem(LS_KEY, JSON.stringify(scores));
+  localStorage.setItem(SCORES_KEY, JSON.stringify(scores));
 }
 
 export function loadColorPalette(): PaletteId {
   if (typeof window === 'undefined') return 'default';
   const saved = localStorage.getItem(PALETTE_KEY) as PaletteId | null;
-  return saved && VALID_PALETTES.includes(saved) ? saved : 'default';
+  return saved && PALETTE_IDS.includes(saved) ? saved : 'default';
 }
 
 export function saveColorPalette(id: PaletteId): void {

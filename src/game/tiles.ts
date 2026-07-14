@@ -56,17 +56,10 @@ export function randTileSide(): number {
 }
 
 // Exclusions compare base values so a bomb-N / locked-N is still treated as "an N".
-export function randTileSideExcluding(exclude: number): number {
-  const ex = baseValue(exclude);
+export function randTileSideExcluding(...exclude: number[]): number {
+  const ex = new Set(exclude.map(baseValue));
   let v: number;
-  do { v = randTileSide(); } while (v === ex);
-  return v;
-}
-
-export function randTileSideExcluding2(a: number, b: number): number {
-  const ea = baseValue(a), eb = baseValue(b);
-  let v: number;
-  do { v = randTileSide(); } while (v === ea || v === eb);
+  do { v = randTileSide(); } while (ex.has(v));
   return v;
 }
 
