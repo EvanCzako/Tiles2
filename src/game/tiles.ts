@@ -8,10 +8,10 @@ import { DEFAULT_CFG } from './config';
 // matching (annihilate), rendering (Tile/FlyingTile/getTileColor), and scoring.
 //
 // Flag ranges (non-overlapping):
-//   1–7       regular tiles
-//   1001–1007 bomb      (BOMB_FLAG   = 1000): detonates a 3×3 blast on annihilation
-//   2001–2007 locked    (LOCKED_FLAG = 2000): needs 2 matches — first hit unlocks it
-//   3001–3007 stone     (STONE_FLAG  = 3000): immovable during gravity/push
+//   1–9       regular tiles
+//   1001–1009 bomb      (BOMB_FLAG   = 1000): detonates a 3×3 blast on annihilation
+//   2001–2009 locked    (LOCKED_FLAG = 2000): needs 2 matches — first hit unlocks it
+//   3001–3009 stone     (STONE_FLAG  = 3000): immovable during gravity/push
 export const BOMB_FLAG   = 1000;
 export const LOCKED_FLAG = 2000;
 export const STONE_FLAG  = 3000;
@@ -31,16 +31,28 @@ export function baseValue(v: number): number {
   return v;
 }
 
-// 1: ~22%, 2: ~19%, 3: ~16%, 4: ~14%, 5: ~12%, 6: ~10%, 7: ~7%
+// Spawn weights for tile values 1..N (index i → value i+1; needn't sum to 100).
+// Mild low-skew over 9 values: keeps low-value board wipes frequent (generous
+// feel) while the scarce top values accumulate as late-board threats. Headless
+// sims show the rarest value is the main difficulty lever — shorter tables are
+// near-unloseable.
+export const DEFAULT_SPAWN_WEIGHTS = [19, 16, 14, 12, 10, 9, 8, 7, 6];
+
+// Overridable so the simulator (scripts/simulate.ts) can test alternative
+// distributions against the real game logic. The game itself never calls this.
+let spawnWeights = DEFAULT_SPAWN_WEIGHTS;
+export function setSpawnWeights(weights: number[]): void {
+  spawnWeights = weights.slice();
+}
+
 export function randTileSide(): number {
-  const r = Math.random() * 100;
-  if (r < 22) return 1;
-  if (r < 41) return 2;
-  if (r < 57) return 3;
-  if (r < 71) return 4;
-  if (r < 83) return 5;
-  if (r < 93) return 6;
-  return 7;
+  const total = spawnWeights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < spawnWeights.length; i++) {
+    r -= spawnWeights[i];
+    if (r < 0) return i + 1;
+  }
+  return spawnWeights.length;
 }
 
 // Exclusions compare base values so a bomb-N / locked-N is still treated as "an N".

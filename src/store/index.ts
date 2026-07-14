@@ -26,10 +26,10 @@ import {
   pushFromBottom,
   checkGameOver,
   createInitialPending,
-  NUKE_CHARGE_MAX,
+  NUKE_DECAY_PER_PUSH,
   REROLL_COOLDOWN,
 } from '../game';
-import { initState, buildFrozenSnapshot, scheduleAutoMoveIfForced } from './init';
+import { initState, scheduleAutoMoveIfForced } from './init';
 import { saveHighScore, saveColorPalette, saveSoundOn, loadSoundOn } from './persistence';
 import { runCollapseLoop, nukeCenterAndSettle } from './animations';
 import { setSoundEnabled, playPush, playGameOver, playReroll } from '../sound';
@@ -45,13 +45,16 @@ const useGameStore = create<GameStore>((set, get) => ({
   setColorPalette(id) { saveColorPalette(id); set({ colorPalette: id }); },
   setSoundOn(on) { saveSoundOn(on); setSoundEnabled(on); set({ soundOn: on }); },
 
-  // Fire the center-cross nuke once the charge meter is full.
+  // Fire the center-cross nuke while the meter is armed. The nuke is full
+  // strength at any armed charge level — the draining meter is only the
+  // use-it-or-lose-it clock, not a power gauge.
   fireNuke() {
     const s = get();
-    if (s.animating || s.gameOver || s.nukeCharge < NUKE_CHARGE_MAX) return;
+    if (s.animating || s.gameOver || !s.nukeArmed) return;
     set({
       animating: true,
       nukeCharge: 0,
+      nukeArmed: false,
       rerollArmed: false,
       turnClearedTiles: 0,
       cleanSweepAwarded: false,
@@ -83,8 +86,12 @@ const useGameStore = create<GameStore>((set, get) => ({
   triggerPush(direction: Direction) {
     const s = get();
     if (s.animating || s.gameOver) return;
+    // Armed nuke meter drains per push; fully drained = nuke lost, recharge from 0.
+    const drainedCharge = s.nukeArmed ? s.nukeCharge - NUKE_DECAY_PER_PUSH : s.nukeCharge;
     set({
       combo: 1,
+      nukeCharge: Math.max(0, drainedCharge),
+      nukeArmed: s.nukeArmed && drainedCharge > 0,
       rerollArmed: false,
       turnsUntilReroll: Math.max(0, s.turnsUntilReroll - 1),
       turnClearedTiles: 0,
@@ -118,7 +125,6 @@ const useGameStore = create<GameStore>((set, get) => ({
       pendingKey === 'leftPending' ? 'left' : pendingKey === 'rightPending' ? 'right' : s.lastHorizontalSide;
 
     const result = pushFn(s.grid, pendingArg, cfg);
-    const frozenPendingRows = buildFrozenSnapshot(s.grid, cfg);
     const payload = { grid: result.grid, [pendingKey]: result.pending };
     const pc = { payload, blockedIndices: result.blockedIndices, pendingKey };
 
@@ -166,7 +172,6 @@ const useGameStore = create<GameStore>((set, get) => ({
       flyingTiles: flying,
       flyingSource: pendingKey.replace('Pending', '') as FlyingSource,
       animating: true,
-      frozenPendingRows,
     });
 
     setTimeout(() => {

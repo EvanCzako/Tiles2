@@ -9,12 +9,13 @@ import {
   isPlayAreaEmpty,
   nextCombo,
   nukeCrossScore,
+  nukePlusCells,
   getTileColor,
   MAX_COMBO,
   NUKE_CHARGE_MAX,
   CLEAN_SWEEP_BONUS_PER_TILE,
 } from '../game';
-import { buildFrozenSnapshot, scheduleAutoMoveIfForced } from './init';
+import { scheduleAutoMoveIfForced } from './init';
 import { saveHighScore } from './persistence';
 import {
   playMatch,
@@ -93,9 +94,16 @@ export function endTurn(
     triggerShake('big', get, set);
     announce('CLEAN SWEEP!', get, set, '#ffcc00');
     spawnScorePopup([[curCfg.CENTER_ROW, curCfg.CENTER_COL]], `+${bonus}`, mult, get, set);
+    // Half a nuke meter, not a full one — a sweep already pays a big score bonus,
+    // and a free full nuke on top made runs snowball. No accrual while armed.
+    const sweepState = get();
+    const sweepCharge = sweepState.nukeArmed
+      ? sweepState.nukeCharge
+      : Math.min(NUKE_CHARGE_MAX, sweepState.nukeCharge + NUKE_CHARGE_MAX / 2);
     set({
       score: get().score + bonus,
-      nukeCharge: NUKE_CHARGE_MAX,
+      nukeCharge: sweepCharge,
+      nukeArmed: sweepState.nukeArmed || sweepCharge >= NUKE_CHARGE_MAX,
       cleanSweepAwarded: true,
     });
   }
@@ -109,7 +117,6 @@ export function endTurn(
       flyingTiles: [],
       collapsingCells: new Set(),
       grid: finalGrid,
-      frozenPendingRows: buildFrozenSnapshot(finalGrid, curCfg),
       ...pendingPayload,
     });
     if (checkGameOver(finalGrid, curCfg)) {
@@ -219,12 +226,17 @@ export function runCollapseLoop(
 
     const mult = Math.min(combo, MAX_COMBO);
     const gained = annScore * mult;
+    // No accrual while armed — the meter is a use-it-or-lose-it countdown then.
+    const wasArmed = get().nukeArmed;
     const prevCharge = get().nukeCharge;
-    const newCharge = chargeNuke ? Math.min(NUKE_CHARGE_MAX, prevCharge + mult) : prevCharge;
+    const newCharge =
+      chargeNuke && !wasArmed ? Math.min(NUKE_CHARGE_MAX, prevCharge + mult) : prevCharge;
+    const nowArmed = wasArmed || newCharge >= NUKE_CHARGE_MAX;
     set({
       score: get().score + gained,
       combo: mult,
       nukeCharge: newCharge,
+      nukeArmed: nowArmed,
       // unlocked tiles stay on the board, so they don't count as cleared
       turnClearedTiles: get().turnClearedTiles + annihilatedCells.length - unlockedCells.length,
     });
@@ -240,7 +252,7 @@ export function runCollapseLoop(
       const label = boardWipeValues.map((v) => `${v}s`).join(' & ');
       announce(`ALL ${label}!`, get, set, getTileColor(boardWipeValues[0], get().colorPalette).bg);
     }
-    if (newCharge === NUKE_CHARGE_MAX && prevCharge < NUKE_CHARGE_MAX) playNukeReady();
+    if (nowArmed && !wasArmed) playNukeReady();
     if (gained > 0) spawnScorePopup(annihilatedCells, `+${gained}`, mult, get, set);
 
     if (boardWipeGroupCells.length > 0) {
@@ -322,7 +334,7 @@ export function runCollapseLoop(
   );
 }
 
-// ── Center-cross nuke, fired manually once the charge meter is full ────────
+// ── Center-plus nuke (5×5 plus at board center), fired manually while armed ─
 export function nukeCenterAndSettle(
   grid: Grid,
   pendingPayload: Partial<GameStore>,
@@ -332,13 +344,9 @@ export function nukeCenterAndSettle(
   lastHorizontalSide: HorizontalSide
 ): void {
   const { cfg } = get();
-  const { ROWS, COLS, CENTER_ROW, CENTER_COL } = cfg;
 
-  const flashCells = new Set<string>();
-  for (let c = 0; c < COLS; c++) flashCells.add(`${CENTER_ROW},${c}`);
-  for (let r = 0; r < ROWS; r++) {
-    if (r !== CENTER_ROW) flashCells.add(`${r},${CENTER_COL}`);
-  }
+  // Flash the full plus shape (empty cells included); clear/score only the occupied ones.
+  const flashCells = new Set<string>(nukePlusCells(cfg).map(([r, c]) => `${r},${c}`));
 
   const { cells: clearCells, score: centerScore } = nukeCrossScore(grid, cfg);
 
@@ -351,7 +359,6 @@ export function nukeCenterAndSettle(
         score: get().score + centerScore * MAX_COMBO,
         combo: MAX_COMBO,
         nukeFlashSet: flashCells,
-        nukeActive: true,
       });
       if (centerScore > 0) {
         spawnScorePopup(clearCells, `+${centerScore * MAX_COMBO}`, MAX_COMBO, get, set);
@@ -366,7 +373,6 @@ export function nukeCenterAndSettle(
         });
         runCollapseLoop(nukedGrid, pendingPayload, get, set, lastVerticalSide, lastHorizontalSide, MAX_COMBO, false);
       }, FLASH_MS);
-      setTimeout(() => set({ nukeActive: false }), 600);
     })
   );
 }

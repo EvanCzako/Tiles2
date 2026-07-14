@@ -30,7 +30,6 @@ export interface Landing {
   pendingIdx: number;
   row?: number;
   col?: number;
-  merged?: boolean;
   flyThrough?: boolean;
 }
 
@@ -107,13 +106,6 @@ export interface Announcement {
   color?: string; // banner glow tint (e.g. wiped tile's color); default is nuke red-orange
 }
 
-export interface FrozenPendingRows {
-  left: boolean[];
-  right: boolean[];
-  top: boolean[];
-  bottom: boolean[];
-}
-
 export interface PendingCommitPayload {
   grid: Grid;
   leftPending?: number[];
@@ -134,9 +126,9 @@ export type VerticalSide = 'top' | 'bottom';
 export type HorizontalSide = 'left' | 'right';
 export type GridMode = '9x9';
 export type Screen = 'menu' | 'game' | 'howToPlay' | 'settings';
-export type FlyingSource = 'left' | 'right' | 'top' | 'bottom' | null;
 export type PendingKey = 'leftPending' | 'rightPending' | 'topPending' | 'bottomPending';
 export type PendingSide = 'left' | 'right' | 'top' | 'bottom';
+export type FlyingSource = PendingSide | null;
 
 export interface GameState {
   gridMode: GridMode;
@@ -158,14 +150,13 @@ export interface GameState {
   boardWipeFlashSet: Set<string>;
   bombFlashSet: Set<string>;
   nukeFlashSet: Set<string>;
-  nukeActive: boolean;
   collapsingCells: Set<string>;
   pendingCommit: PendingCommit | null;
-  frozenPendingRows: FrozenPendingRows | null;
   lastVerticalSide: VerticalSide;
   lastHorizontalSide: HorizontalSide;
   colorPalette: PaletteId;
-  nukeCharge: number;        // 0..NUKE_CHARGE_MAX — manual nuke fires when full
+  nukeCharge: number;        // 0..NUKE_CHARGE_MAX — accrues while unarmed, drains while armed
+  nukeArmed: boolean;        // meter filled; nuke fireable, meter decays per push until fired/lost
   rerollArmed: boolean;      // true while the player is picking a strip to reroll
   turnsUntilReroll: number;  // 0 = reroll ready
   turnClearedTiles: number;  // tiles cleared so far this turn (drives clean-sweep bonus)

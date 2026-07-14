@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CELL, ANIM_MS } from '../constants';
-import { getTileColor, baseValue, isBomb, isLocked, isStone } from '../gameLogic';
+import { getTileColor, baseValue, isBomb, isLocked, isStone } from '../game';
 import useGameStore from '../store';
 
 interface FlyingTileProps {

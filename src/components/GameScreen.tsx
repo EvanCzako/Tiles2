@@ -2,7 +2,7 @@ import useGameStore from '../store';
 import { useScale } from '../hooks/useScale';
 import { useInput } from '../hooks/useInput';
 import { COMBO_COLORS } from '../constants';
-import { NUKE_CHARGE_MAX } from '../gameLogic';
+import { NUKE_CHARGE_MAX } from '../game';
 import GameHeader from './GameHeader';
 import Arena from './Arena';
 import type { Screen } from '../types';
@@ -21,6 +21,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
     animating,
     gameOver,
     nukeCharge,
+    nukeArmed,
     fireNuke,
     rerollArmed,
     turnsUntilReroll,
@@ -34,7 +35,9 @@ export default function GameScreen({ navigate }: GameScreenProps) {
   useInput(triggerPush, fireNuke);
 
   const comboColor = COMBO_COLORS[Math.min(combo - 1, 4)];
-  const nukeReady = nukeCharge >= NUKE_CHARGE_MAX;
+  // While armed the meter drains per push (use-it-or-lose-it) — the shrinking
+  // fill bar under the NUKE label is the countdown.
+  const nukeReady = nukeArmed;
   const rerollReady = turnsUntilReroll === 0;
 
   return (

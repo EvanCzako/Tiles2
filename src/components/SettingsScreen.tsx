@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
-import { PALETTE_IDS, PALETTE_LABELS, getTileColor } from '../gameLogic';
+import { PALETTE_IDS, PALETTE_LABELS, getTileColor } from '../game';
 import type { Screen, GridMode } from '../types';
 
 // Only modes the GridMode type actually allows; the section hides itself

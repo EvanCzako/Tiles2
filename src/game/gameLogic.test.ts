@@ -25,8 +25,8 @@ import {
   BOMB_FLAG,
   isBomb,
   baseValue,
-} from './gameLogic.js';
-import type { Grid, GridCfg } from './types.js';
+} from './index.js';
+import type { Grid, GridCfg } from '../types.js';
 
 // Helper: build a sparse 9×9 grid from a list of [row, col, value] triples.
 function makeGrid(entries: [number, number, number][]): Grid {
@@ -89,7 +89,7 @@ describe('Grid Initialization', () => {
   test('createInitialPending returns array of 5 non-repeating tiles for any side', () => {
     const pending = createInitialPending();
     expect(pending.length).toBe(5);
-    expect(pending.every((t) => t >= 1 && t <= 7)).toBe(true);
+    expect(pending.every((t) => t >= 1 && t <= 9)).toBe(true);
     // No two adjacent tiles should be equal (randTileSideExcluding)
     for (let i = 1; i < pending.length; i++) expect(pending[i]).not.toBe(pending[i - 1]);
   });
@@ -1175,63 +1175,76 @@ describe('checkGameOver', () => {
 
 // ── nukeCrossScore ────────────────────────────────────────────────────────────
 
-describe('nukeCrossScore', () => {
+describe('nukeCrossScore (5×5 center plus)', () => {
   test('empty grid returns no cells and score 0', () => {
     const { cells, score } = nukeCrossScore(makeGrid([]));
     expect(cells.length).toBe(0);
     expect(score).toBe(0);
   });
 
-  test('tiles only in center row are all collected', () => {
+  test('all nine plus cells are collected when occupied', () => {
     const grid = makeGrid([
-      [CENTER_ROW, 0, 1],
-      [CENTER_ROW, 4, 3],
-      [CENTER_ROW, 8, 2],
+      [CENTER_ROW, CENTER_COL, 5],
+      [CENTER_ROW - 1, CENTER_COL, 1],
+      [CENTER_ROW - 2, CENTER_COL, 6],
+      [CENTER_ROW + 1, CENTER_COL, 2],
+      [CENTER_ROW + 2, CENTER_COL, 7],
+      [CENTER_ROW, CENTER_COL - 1, 3],
+      [CENTER_ROW, CENTER_COL - 2, 8],
+      [CENTER_ROW, CENTER_COL + 1, 4],
+      [CENTER_ROW, CENTER_COL + 2, 9],
     ]);
     const { cells, score } = nukeCrossScore(grid);
-    expect(cells.length).toBe(3);
-    expect(score).toBe(1 + 3 + 2);
+    expect(cells.length).toBe(9);
+    expect(score).toBe(5 + 1 + 6 + 2 + 7 + 3 + 8 + 4 + 9);
   });
 
-  test('tiles only in center column are all collected', () => {
+  test('only occupied plus cells are collected', () => {
     const grid = makeGrid([
-      [0, CENTER_COL, 2],
-      [3, CENTER_COL, 1],
-      [7, CENTER_COL, 4],
+      [CENTER_ROW, CENTER_COL, 5],
+      [CENTER_ROW - 1, CENTER_COL, 1],
     ]);
     const { cells, score } = nukeCrossScore(grid);
-    expect(cells.length).toBe(3);
-    expect(score).toBe(2 + 1 + 4);
+    expect(cells.length).toBe(2);
+    expect(score).toBe(5 + 1);
   });
 
-  test('intersection cell (CENTER_ROW, CENTER_COL) counted exactly once', () => {
-    const grid = makeGrid([[CENTER_ROW, CENTER_COL, 5]]);
-    const { cells, score } = nukeCrossScore(grid);
-    expect(cells.length).toBe(1);
-    expect(score).toBe(5);
-  });
-
-  test('tiles in both center row and col — no double-counting at intersection', () => {
+  test('center row/col tiles beyond the plus arms are NOT collected', () => {
     const grid = makeGrid([
-      [CENTER_ROW, 2, 3],
-      [CENTER_ROW, CENTER_COL, 2],
-      [2, CENTER_COL, 1],
-    ]);
-    const { cells, score } = nukeCrossScore(grid);
-    expect(cells.length).toBe(3);
-    expect(score).toBe(3 + 2 + 1);
-  });
-
-  test('cells outside the cross are not collected', () => {
-    const grid = makeGrid([
-      [0, 0, 7],
       [CENTER_ROW, CENTER_COL, 1],
+      [CENTER_ROW, 0, 7], // center row, outside plus
+      [CENTER_ROW, CENTER_COL - 3, 6], // center row, three away
+      [0, CENTER_COL, 5], // center col, outside plus
+      [CENTER_ROW - 3, CENTER_COL, 4], // center col, three away
     ]);
     const { cells, score } = nukeCrossScore(grid);
     expect(cells.length).toBe(1);
     expect(score).toBe(1);
   });
 
+  test('diagonal neighbours of center are NOT collected (plus, not 5×5 block)', () => {
+    const grid = makeGrid([
+      [CENTER_ROW - 1, CENTER_COL - 1, 7],
+      [CENTER_ROW - 1, CENTER_COL + 1, 7],
+      [CENTER_ROW + 1, CENTER_COL - 1, 7],
+      [CENTER_ROW + 1, CENTER_COL + 1, 7],
+      [CENTER_ROW - 2, CENTER_COL - 2, 7],
+      [CENTER_ROW, CENTER_COL, 2],
+    ]);
+    const { cells, score } = nukeCrossScore(grid);
+    expect(cells.length).toBe(1);
+    expect(score).toBe(2);
+  });
+
+  test('scores bombs and stones at their base value', () => {
+    const grid = makeGrid([
+      [CENTER_ROW, CENTER_COL, BOMB_FLAG + 3],
+      [CENTER_ROW - 1, CENTER_COL, 2],
+    ]);
+    const { cells, score } = nukeCrossScore(grid);
+    expect(cells.length).toBe(2);
+    expect(score).toBe(3 + 2);
+  });
 });
 
 // ── Combo multiplier ─────────────────────────────────────────────────────────

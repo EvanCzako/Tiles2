@@ -1,5 +1,5 @@
 import { CELL } from '../constants';
-import { getTileColor, baseValue, isBomb, isLocked, isStone } from '../gameLogic';
+import { getTileColor, baseValue, isBomb, isLocked, isStone } from '../game';
 import useGameStore from '../store';
 
 interface TileProps {

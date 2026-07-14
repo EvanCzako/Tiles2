@@ -37,20 +37,22 @@ For 9×9:
 ```
 `[##]` = corner obstacle cells (rows `r < PENDING_ROW_START || r >= PENDING_ROW_START + PENDING_SIZE` AND cols `c < PENDING_COL_START || c >= PENDING_COL_START + PENDING_SIZE`).
 
-Corner cells are identified by `isCornerCell(r, c, cfg)` (exported from `gameLogic.ts`). They are rendered with CSS class `grid-cell--corner` (and `grid-cell--corner--empty` when their value is 0).
+Corner cells are identified by `isCornerCell(r, c, cfg)` (exported from `src/game/corners.ts`). They are rendered with CSS class `grid-cell--corner` (and `grid-cell--corner--empty` when their value is 0).
 
-## Grid Configs (`GRID_CONFIGS` in `gameLogic.ts`)
+## Grid Configs (`GRID_CONFIGS` in `src/game/config.ts`)
 | Mode | ROWS | COLS | PENDING_SIZE | PENDING_ROW_START | PENDING_COL_START | CENTER_ROW | CENTER_COL |
 |------|------|------|------|------|------|------|------|
 | `'9x9'` | 9 | 9 | 5 | 2 | 2 | 4 | 4 |
 | `'11x11'` | 11 | 11 | 7 | 2 | 2 | 5 | 5 |
+
+Only `'9x9'` is currently selectable (`GridMode` type in `types.ts`); the `'11x11'` config is kept as a dormant alternate mode.
 
 ## Pending Tiles
 There are **4 pending rows/columns** (one on each side), each containing `PENDING_SIZE` tiles aligned with rows/cols `PENDING_ROW_START` through `PENDING_ROW_START + PENDING_SIZE - 1`. On a swipe the pending strip for that side is pushed into the active area. Refreshed pending values are committed immediately (the strip always shows a full set of tiles — no zeroing during cascade).
 
 All 5 pending tiles always land on push, even if a row/column is entirely empty (no fly-throughs).
 
-Tile distribution: moderately favors low values — 1 (~33%), 2 (~24%), 3 (~16%), 4 (~10%), 5 (~7%), 6 (~6%), 7 (~4%). Adjacent pending tiles are never the same value.
+Tile distribution: 9 values with a mild low-skew — 1 (~19%), 2 (~16%), 3 (~14%), 4 (~12%), 5 (~10%), 6 (~9%), 7 (~8%), 8 (~7%), 9 (~6%). Adjacent pending tiles are never the same value.
 
 ---
 
@@ -88,7 +90,7 @@ Multiple values can trigger in the same wave independently. Score per wave is mu
 ---
 
 ## Collapse / Gravity (two-phase, runs after every push and annihilation)
-Implemented in `collapseGrid()` in `src/gameLogic.ts`. Corner cells are immovable obstacles and are excluded from tile lists and never zeroed.
+Implemented in `collapseGrid()` in `src/game/collapse.ts`. Corner cells are immovable obstacles and are excluded from tile lists and never zeroed.
 
 **Phase 1 — Gravity (vertical, toward CENTER_ROW):**
 - `lastVerticalSide` determines which half "owns" CENTER_ROW.
@@ -104,7 +106,7 @@ Implemented in `collapseGrid()` in `src/gameLogic.ts`. Corner cells are immovabl
 `midGrid` is the snapshot between phases (used to stage the two animation sequences).  
 Both `gravityMoves` and `horizontalMoves` are arrays of `{ value, fromRow, fromCol, toRow, toCol }`.
 
-**Key invariant (`consolidateCrossPhase`):** while-loop moves and post-processing moves for the *same physical tile* are merged into one net animation; moves that are *different tiles* that happen to share a position are never merged (regression-tested heavily in `gameLogic.test.ts`).
+**Key invariant (`consolidateCrossPhase`):** while-loop moves and post-processing moves for the *same physical tile* are merged into one net animation; moves that are *different tiles* that happen to share a position are never merged (regression-tested heavily in `src/game/gameLogic.test.ts`).
 
 ---
 
@@ -118,13 +120,14 @@ MAX_COMBO = 5   // combo (and score multiplier) cap per cascade wave
 
 ## Player Abilities (combo strip buttons)
 ```
-NUKE_CHARGE_MAX = 12   // charge points to fill the nuke meter
-REROLL_COOLDOWN = 10   // turns between pending-strip rerolls
+NUKE_CHARGE_MAX     = 24   // charge points to arm the nuke meter
+NUKE_DECAY_PER_PUSH = 1    // charge lost per push while armed (use-it-or-lose-it)
+REROLL_COOLDOWN     = 10   // turns between pending-strip rerolls
 ```
 
-- **Chargeable nuke:** each annihilation wave adds its combo multiplier to `nukeCharge` (capped at NUKE_CHARGE_MAX; a chime plays when it fills). The NUKE button (left of the combo badge) shows `☢ N/12`, pulses when full, and fires via click or **Space** (`fireNuke` action):
-  1. Red-orange flash (`nukeFlashSet`) the full center cross (entire row CENTER_ROW + entire col CENTER_COL), big screen shake, "NUKE!" announcement.
-  2. Clear only the non-empty cross cells and score them × MAX_COMBO (5) — `nukeCrossScore` uses base values so specialty flags don't inflate the score.
+- **Chargeable nuke:** each annihilation wave adds its combo multiplier to `nukeCharge` while unarmed (a chime plays when the meter fills). At NUKE_CHARGE_MAX the meter **arms** (`nukeArmed`): charging stops and every push drains NUKE_DECAY_PER_PUSH — if it drains to 0 the nuke is lost and recharging restarts from empty. The nuke is full strength at any armed charge level; the draining bar is only a countdown. The NUKE button (left of the combo badge) shows `☢ N/24`, pulses while armed, and fires via click or **Space** (`fireNuke` action, gated on `nukeArmed`):
+  1. Red-orange flash (`nukeFlashSet`) of the blast shape — a **5×5 plus** at the board center (`nukePlusCells`: center cell + its 2 nearest orthogonal neighbours in each of the 4 directions) — big screen shake, "NUKE!" announcement.
+  2. Clear only the non-empty plus cells and score them × MAX_COMBO (5) — `nukeCrossScore` uses base values so specialty flags don't inflate the score.
   3. Run the collapse loop at combo = MAX_COMBO with `chargeNuke=false` (nuke fallout can't recharge the meter; charging resumes next turn).
 - **Strip reroll (SWAP):** the SWAP button (right of the combo badge) arms strip-pick mode (`rerollArmed`) — all four pending strips pulse; tapping one rerolls it (`rerollStrip(side)`, fresh `createInitialPending`) and starts a REROLL_COOLDOWN-turn cooldown (`turnsUntilReroll`, decremented per push, shown on the button). Arming is a toggle; pushing disarms.
 
@@ -134,7 +137,7 @@ CLEAN_SWEEP_BONUS_PER_TILE = 25
 ```
 When a turn empties the **entire play area** (`isPlayAreaEmpty` in `game/grid.ts` — every non-corner cell 0; corners are excluded because they refill themselves), `endTurn` awards, once per turn (`cleanSweepAwarded` flag):
 - **Bonus** = `CLEAN_SWEEP_BONUS_PER_TILE × turnClearedTiles × min(combo, MAX_COMBO)`. `turnClearedTiles` accumulates per turn across cascade waves and nuke clears (unlocked-not-cleared tiles excluded); reset on push/fireNuke.
-- **Fully charged nuke** (`nukeCharge = NUKE_CHARGE_MAX`).
+- **Half a nuke meter** (`+NUKE_CHARGE_MAX / 2`, capped; arms the meter if it fills; no effect while already armed).
 - Juice: gold "CLEAN SWEEP!" announcement, big shake, ascending fanfare (`playCleanSweep`), `+bonus` popup at center.
 The check runs at the top of `endTurn`, before corner settlement, so corner-refill cascades can't re-trigger it.
 
@@ -159,7 +162,7 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 **Flash types** (all hold for `FLASH_MS` then grid is zeroed):
 - `annihilateSet` → `tile--flash-annihilate` — gold/white overlay (regular 2-tile annihilation)
 - `boardWipeFlashSet` → `tile--flash-boardwipe` — value-colored brightness pop (3+ board-wide wipe); group cells flash first, spread cells join 150 ms later
-- `nukeFlashSet` → `tile--flash-nuke` — red-orange overlay (nuke cross clear)
+- `nukeFlashSet` → `tile--flash-nuke` — red-orange overlay (nuke plus clear)
 
 **`collapsingCells`:** set of cells hidden during a collapse animation (their flying counterpart is visible instead).
 
@@ -171,7 +174,7 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 
 ---
 
-## Zustand Store State (`src/store.ts`)
+## Zustand Store State (`src/store/`)
 ```ts
 grid                // ROWS×COLS number array (0 = empty)
 leftPending / rightPending / topPending / bottomPending  // number[PENDING_SIZE]
@@ -181,15 +184,14 @@ flyingTiles         // FlyingTile descriptor array
 flyingSource        // 'left'|'right'|'top'|'bottom'|null — which side is currently flying
 annihilateSet       // Set<"r,c"> — cells gold-flashing (regular 2-tile annihilation)
 boardWipeFlashSet   // Set<"r,c"> — cells value-colored flashing (3+ board-wide wipe)
-nukeFlashSet        // Set<"r,c"> — cells red-orange flashing (nuke cross)
-nukeActive          // boolean — true while nuke flash is live (reserved for future use)
+nukeFlashSet        // Set<"r,c"> — cells red-orange flashing (nuke plus)
 collapsingCells     // Set<"r,c"> — cells hidden during collapse animation
 pendingCommit       // { payload, blockedIndices, pendingKey } — held during push animation
-frozenPendingRows   // snapshot of per-row/col activity at push time (used internally, not read by Arena for visibility)
 lastVerticalSide    // 'top'|'bottom'
 lastHorizontalSide  // 'left'|'right'
 cfg / layout / gridMode
-nukeCharge          // 0..NUKE_CHARGE_MAX — manual nuke fires when full (fireNuke action / Space)
+nukeCharge          // 0..NUKE_CHARGE_MAX — accrues while unarmed, drains per push while armed
+nukeArmed           // meter filled; nuke fireable (fireNuke action / Space) until meter drains to 0
 rerollArmed         // true while picking a strip to reroll
 turnsUntilReroll    // reroll cooldown; 0 = ready
 turnClearedTiles / cleanSweepAwarded  // per-turn clean-sweep tracking (see Clean Sweep)
@@ -202,7 +204,7 @@ soundOn             // sound toggle (persisted)
 **Key store helpers (in `store/animations.ts`):**
 - `endTurn(grid, pendingPayload, get, set)` — runs `settleCorners`, animates both corner phases, then calls `finalize` or re-enters cascade if corner refill created matches.
 - `runCollapseLoop(..., combo, chargeNuke)` — recursive cascade; accrues nuke charge, plays sounds, spawns popups/shake/announcements per wave. `chargeNuke=false` for nuke-initiated cascades.
-- `nukeCenterAndSettle(...)` — nuke flash/sound/shake/announcement → clear cross → `runCollapseLoop` at combo MAX_COMBO with `chargeNuke=false`. Invoked only by the `fireNuke` store action.
+- `nukeCenterAndSettle(...)` — nuke flash/sound/shake/announcement → clear the center plus → `runCollapseLoop` at combo MAX_COMBO with `chargeNuke=false`. Invoked only by the `fireNuke` store action.
 
 High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'` as a JSON object (`{ '9x9': number, '11x11': number, ... }`).
 
@@ -219,27 +221,33 @@ A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It i
 src/
   game/           ← pure game logic (no React, no browser APIs)
     config.ts     — GRID_CONFIGS, DEFAULT_CFG, top-level ROWS/COLS constants
-    tiles.ts      — randTileSide*, getTileColor, createInitialPending
+    tiles.ts      — spawn weights (DEFAULT_SPAWN_WEIGHTS/setSpawnWeights, randTileSide*),
+                    specialty-tile flags, getTileColor + palettes, createInitialPending
     grid.ts       — createInitialGrid, isPlayAreaEmpty
     corners.ts    — isCornerCell, getCornerBlockSpecs, settleCorners
     push.ts       — pushFromLeft/Right/Top/Bottom, checkGameOver
     collapse.ts   — collapseGrid (+ private consolidateCrossPhase)
     annihilate.ts — annihilateAdjacent
-    combo.ts      — MAX_COMBO, NUKE_CHARGE_MAX, REROLL_COOLDOWN, nextCombo, nukeCrossScore
+    combo.ts      — MAX_COMBO, NUKE_CHARGE_MAX, NUKE_DECAY_PER_PUSH, REROLL_COOLDOWN,
+                    CLEAN_SWEEP_BONUS_PER_TILE, nextCombo, nukePlusCells, nukeCrossScore
     index.ts      — re-exports all of the above
+    gameLogic.test.ts — pure logic tests (see Testing)
   store/          ← Zustand store, split by concern
     persistence.ts — localStorage high score helpers
-    init.ts       — initState, buildFrozenSnapshot, getAvailableDirections
+    init.ts       — initState, getAvailableDirections, canUseAbility, scheduleAutoMoveIfForced
     animations.ts — endTurn, runCollapseLoop, nukeCenterAndSettle
     index.ts      — useGameStore (triggerPush + store creation)
-  components/     ← React components (unchanged)
-  hooks/          ← useInput, useScale (unchanged)
-  gameLogic.ts    — barrel re-export of src/game/index (backward compat)
-  store.ts        — barrel re-export of src/store/index (backward compat)
+  components/     ← React components
+  hooks/          ← useInput, useScale
   types.ts        — all shared TypeScript types
   constants.ts    — CELL, GAP, animation/juice timings, COMBO_COLORS
   sound.ts        — synthesized WebAudio SFX (see Juice section)
   layout.ts       — getLayout, cellPos, *PendingPos helpers
+scripts/
+  simulate.ts     — headless balance simulator (`npm run sim -- dist|abilities [games]`);
+                    plays full games with the real game logic under random/greedy bots.
+                    Use it to evaluate spawn-distribution or ability-tuning changes
+                    (spawn weights injected via setSpawnWeights in game/tiles.ts).
 ```
 
 ## Components
@@ -262,14 +270,14 @@ src/
 ## Layout (`src/layout.ts`)
 `getLayout(cfg)` → layout object with pixel positions for the container, grid, and all four pending strips. Helper fns: `cellPos`, `leftPendingPos`, `rightPendingPos`, `topPendingPos`, `bottomPendingPos`.
 
-## Tile Colors (`getTileColor` in `gameLogic.ts`)
+## Tile Colors (`getTileColor` in `src/game/tiles.ts`)
 1→blue, 2→teal, 3→green, 4→yellow-green, 5→yellow, 6→orange, 7→red-orange, 8→red, 9→magenta, 10→purple. Values > 10 fall back to white/dark.
 
 ---
 
 ## Testing
-`src/gameLogic.test.ts` — pure logic tests (no React). Run with `npm test`.  
-Covers: constants, grid init, push from all 4 sides, gravity/horizontal collapse, annihilation (including board-wide wipe: 3+ connected group triggers full-value sweep; 2-tile groups remain local), game-over detection, nuke cross score, combo math, and regression tests for the `consolidateCrossPhase` animation merge bug (same-value tiles in the same pass must never be chained).
+`src/game/gameLogic.test.ts` — pure logic tests (no React). Run with `npm test`.  
+Covers: constants, grid init, push from all 4 sides, gravity/horizontal collapse, annihilation (including board-wide wipe: 3+ connected group triggers full-value sweep; 2-tile groups remain local), game-over detection, nuke plus score, combo math, and regression tests for the `consolidateCrossPhase` animation merge bug (same-value tiles in the same pass must never be chained).
 
 ---
 
