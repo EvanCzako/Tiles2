@@ -40,14 +40,9 @@ const sections: Section[] = [
     body: "Every match adds to the nuke meter — bigger combos charge it faster. When the button reads NUKE, tap it (or press Space) to blast a plus-shaped hole in the center of the board at ×5 points. But don't sit on it: an armed nuke leaks charge every swipe, and if the meter drains empty the nuke is gone.",
   },
   {
-    icon: '↻',
-    title: 'Swap',
-    body: "Don't like an incoming strip? Tap SWAP, then tap any of the four strips to reroll its tiles. Recharges after 10 turns.",
-  },
-  {
     icon: '✨',
     title: 'Clean Sweep',
-    body: 'Empty the entire board in one turn and you bank a bonus — the more tiles you cleared, the bigger it pays — plus half a nuke meter.',
+    body: 'Empty the entire board in one turn and you bank a bonus — the more tiles you cleared, the bigger it pays.',
   },
   {
     icon: '💣',

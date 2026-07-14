@@ -42,8 +42,6 @@ export function initState(mode: GridMode = '9x9'): GameState {
     colorPalette: loadColorPalette(),
     nukeCharge: 0,
     nukeArmed: false,
-    rerollArmed: false,
-    turnsUntilReroll: 0,
     turnClearedTiles: 0,
     cleanSweepAwarded: false,
     scorePopups: [],
@@ -66,11 +64,11 @@ export function getAvailableDirections(s: { grid: Grid; cfg: GridCfg }): Directi
   return dirs;
 }
 
-// The player still has a meaningful alternative to swiping: an armed nuke or
-// a ready strip reroll. While true, the single-direction auto-move must not
-// fire — the "forced" swipe isn't actually forced.
-export function canUseAbility(s: { nukeArmed: boolean; turnsUntilReroll: number }): boolean {
-  return s.nukeArmed || s.turnsUntilReroll === 0;
+// The player still has a meaningful alternative to swiping: an armed nuke.
+// While true, the single-direction auto-move must not fire — the "forced"
+// swipe isn't actually forced.
+export function canUseAbility(s: { nukeArmed: boolean }): boolean {
+  return s.nukeArmed;
 }
 
 // Auto-push the only available direction after a short delay — but only when

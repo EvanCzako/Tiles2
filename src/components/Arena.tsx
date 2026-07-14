@@ -2,24 +2,14 @@ import useGameStore from '../store';
 import { CELL, GAP, COMBO_COLORS } from '../constants';
 import Tile from './Tile';
 import FlyingTile from './FlyingTile';
-import GameOverOverlay from './GameOverOverlay';
-import type { Screen } from '../types';
 
-interface ArenaProps {
-  navigate?: (screen: Screen) => void;
-}
-
-export default function Arena({ navigate }: ArenaProps) {
+export default function Arena() {
   const {
     grid,
     leftPending,
     rightPending,
     topPending,
     bottomPending,
-    score,
-    highScore,
-    gameOver,
-    reset,
     flyingTiles,
     flyingSource,
     annihilateSet,
@@ -31,29 +21,32 @@ export default function Arena({ navigate }: ArenaProps) {
     cfg,
     layout,
     scorePopups,
-    rerollArmed,
-    rerollStrip,
   } = useGameStore();
 
   const blockedKey = pendingCommit?.pendingKey ?? null;
   const blockedSet = pendingCommit ? new Set(pendingCommit.blockedIndices) : new Set<number>();
-  const armedClass = rerollArmed ? ' pending--armed' : '';
 
   const { sideOffset, gridPx, gridTopOffset, pendingColTop, topPendingLeft, bottomPendingY } =
     layout;
-  const { PENDING_ROW_START, PENDING_COL_START, CENTER_COL, CENTER_ROW } = cfg;
+  const { ROWS, COLS, PENDING_ROW_START, PENDING_COL_START, CENTER_COL, CENTER_ROW } = cfg;
+
+  // The four 2×2 corner obstacle blocks. Framed as distinct "zones" since they have
+  // their own gravity/refill rules separate from the main play area.
+  const CORNER_PAD = 3;
+  const cornerZones = [
+    { sr: 0, sc: 0 },
+    { sr: 0, sc: COLS - PENDING_COL_START },
+    { sr: ROWS - PENDING_ROW_START, sc: 0 },
+    { sr: ROWS - PENDING_ROW_START, sc: COLS - PENDING_COL_START },
+  ].map(({ sr, sc }) => ({
+    left: sc * (CELL + GAP) - CORNER_PAD,
+    top: sr * (CELL + GAP) - CORNER_PAD,
+    width: PENDING_COL_START * CELL + (PENDING_COL_START - 1) * GAP + CORNER_PAD * 2,
+    height: PENDING_ROW_START * CELL + (PENDING_ROW_START - 1) * GAP + CORNER_PAD * 2,
+  }));
 
   return (
     <>
-      {gameOver && (
-        <GameOverOverlay
-          score={score}
-          highScore={highScore}
-          onReset={reset}
-          onMenu={navigate ? () => navigate('menu') : undefined}
-        />
-      )}
-
       {flyingTiles.map((ft) => (
         <FlyingTile
           key={ft.id}
@@ -84,9 +77,8 @@ export default function Arena({ navigate }: ArenaProps) {
 
       {/* Top pending */}
       <div
-        className={`pending-row${armedClass}`}
+        className="pending-row"
         style={{ left: sideOffset + topPendingLeft, top: 0 }}
-        onClick={rerollArmed ? () => rerollStrip('top') : undefined}
       >
         {topPending.map((val, i) => {
           const isBlocked = blockedKey === 'topPending' && blockedSet.has(i);
@@ -97,9 +89,8 @@ export default function Arena({ navigate }: ArenaProps) {
 
       {/* Left pending */}
       <div
-        className={`pending-col${armedClass}`}
+        className="pending-col"
         style={{ left: 0, top: pendingColTop }}
-        onClick={rerollArmed ? () => rerollStrip('left') : undefined}
       >
         {leftPending.map((val, i) => {
           const isBlocked = blockedKey === 'leftPending' && blockedSet.has(i);
@@ -118,6 +109,11 @@ export default function Arena({ navigate }: ArenaProps) {
           gridTemplateColumns: `repeat(${cfg.COLS}, ${CELL}px)`,
         }}
       >
+        {/* Corner obstacle-zone frames (painted behind the tiles) */}
+        {cornerZones.map((z, i) => (
+          <div key={`corner-zone-${i}`} className="corner-zone" style={z} />
+        ))}
+
         {grid.map((row, r) =>
           row.map((val, c) => {
             const key = `${r},${c}`;
@@ -146,9 +142,8 @@ export default function Arena({ navigate }: ArenaProps) {
 
       {/* Right pending */}
       <div
-        className={`pending-col${armedClass}`}
+        className="pending-col"
         style={{ left: sideOffset + gridPx + GAP * 4, top: pendingColTop }}
-        onClick={rerollArmed ? () => rerollStrip('right') : undefined}
       >
         {rightPending.map((val, i) => {
           const isBlocked = blockedKey === 'rightPending' && blockedSet.has(i);
@@ -159,9 +154,8 @@ export default function Arena({ navigate }: ArenaProps) {
 
       {/* Bottom pending */}
       <div
-        className={`pending-row${armedClass}`}
+        className="pending-row"
         style={{ left: sideOffset + topPendingLeft, top: bottomPendingY }}
-        onClick={rerollArmed ? () => rerollStrip('bottom') : undefined}
       >
         {bottomPending.map((val, i) => {
           const isBlocked = blockedKey === 'bottomPending' && blockedSet.has(i);

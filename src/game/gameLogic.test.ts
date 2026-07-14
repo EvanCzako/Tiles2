@@ -18,11 +18,11 @@ import {
   nextCombo,
   MAX_COMBO,
   NUKE_CHARGE_MAX,
-  REROLL_COOLDOWN,
   CLEAN_SWEEP_BONUS_PER_TILE,
   isPlayAreaEmpty,
   nukeCrossScore,
   BOMB_FLAG,
+  STONE_FLAG,
   isBomb,
   baseValue,
 } from './index.js';
@@ -879,6 +879,29 @@ describe('Move Animation Integrity — horizontal', () => {
     expect(horizontalMoves.find((m) => m.value === 3)?.toCol).toBe(4);
   });
 
+  // Regression: a tile that can't drop until a horizontal slide frees its column must never be
+  // animated as a single diagonal move. It has to turn the corner across separate straight stages.
+  test('[BUG] obstacle-blocked tile turns the corner as straight stages, never a diagonal', () => {
+    const grid = makeGrid([
+      [2, 3, 5],                        // tile above center, one col left of CENTER_COL
+      [CENTER_ROW, 3, STONE_FLAG + 9],  // stone at CENTER_ROW blocks the vertical drop in that column
+    ]);
+    const { grid: g, gravityMoves, stages } = collapseGrid(grid, undefined, 'top', 'left');
+
+    // Every animated move — gravity plus every rest stage — must be strictly single-axis.
+    const allMoves = [...gravityMoves, ...stages.flatMap((s) => s.moves)];
+    for (const m of allMoves) {
+      expect(m.fromRow === m.toRow || m.fromCol === m.toCol).toBe(true);
+    }
+
+    // The tile genuinely turns a corner: it slides horizontally, then a later stage drops it.
+    expect(stages.length).toBeGreaterThanOrEqual(2);
+
+    // And it settles next to the stone at CENTER_ROW / CENTER_COL.
+    expect(g[CENTER_ROW][3]).toBe(STONE_FLAG + 9);
+    expect(g[CENTER_ROW][CENTER_COL]).toBe(5);
+  });
+
   test('horizontal tile count preserved during row packing', () => {
     const grid = makeGrid([
       [CENTER_ROW, 0, 1],
@@ -1264,10 +1287,9 @@ describe('nextCombo', () => {
     expect(nextCombo(10)).toBe(5);
   });
 
-  test('ability constants: MAX_COMBO 5, positive nuke charge, 10-turn reroll', () => {
+  test('ability constants: MAX_COMBO 5, positive nuke charge & sweep bonus', () => {
     expect(MAX_COMBO).toBe(5);
     expect(NUKE_CHARGE_MAX).toBeGreaterThan(0);
-    expect(REROLL_COOLDOWN).toBe(10);
     expect(CLEAN_SWEEP_BONUS_PER_TILE).toBeGreaterThan(0);
   });
 });

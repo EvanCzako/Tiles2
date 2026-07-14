@@ -25,14 +25,12 @@ import {
   pushFromTop,
   pushFromBottom,
   checkGameOver,
-  createInitialPending,
   NUKE_DECAY_PER_PUSH,
-  REROLL_COOLDOWN,
 } from '../game';
 import { initState, scheduleAutoMoveIfForced } from './init';
 import { saveHighScore, saveColorPalette, saveSoundOn, loadSoundOn } from './persistence';
 import { runCollapseLoop, nukeCenterAndSettle } from './animations';
-import { setSoundEnabled, playPush, playGameOver, playReroll } from '../sound';
+import { setSoundEnabled, playPush, playGameOver } from '../sound';
 
 setSoundEnabled(loadSoundOn());
 
@@ -55,32 +53,10 @@ const useGameStore = create<GameStore>((set, get) => ({
       animating: true,
       nukeCharge: 0,
       nukeArmed: false,
-      rerollArmed: false,
       turnClearedTiles: 0,
       cleanSweepAwarded: false,
     });
     nukeCenterAndSettle(s.grid, {}, get, set, s.lastVerticalSide, s.lastHorizontalSide);
-  },
-
-  // Arm/disarm strip-pick mode for the reroll ability.
-  toggleRerollArm() {
-    const s = get();
-    if (s.gameOver || s.turnsUntilReroll > 0) return;
-    set({ rerollArmed: !s.rerollArmed });
-  },
-
-  // Reroll one pending strip (chosen by tapping it while armed).
-  rerollStrip(side) {
-    const s = get();
-    if (!s.rerollArmed || s.turnsUntilReroll > 0 || s.animating || s.gameOver) return;
-    playReroll();
-    set({
-      [`${side}Pending`]: createInitialPending(s.cfg),
-      rerollArmed: false,
-      turnsUntilReroll: REROLL_COOLDOWN,
-    });
-    // Spending the reroll may leave the player truly forced — resume auto-move.
-    scheduleAutoMoveIfForced(get);
   },
 
   triggerPush(direction: Direction) {
@@ -92,8 +68,6 @@ const useGameStore = create<GameStore>((set, get) => ({
       combo: 1,
       nukeCharge: Math.max(0, drainedCharge),
       nukeArmed: s.nukeArmed && drainedCharge > 0,
-      rerollArmed: false,
-      turnsUntilReroll: Math.max(0, s.turnsUntilReroll - 1),
       turnClearedTiles: 0,
       cleanSweepAwarded: false,
     });

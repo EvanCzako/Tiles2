@@ -5,6 +5,7 @@ import { COMBO_COLORS } from '../constants';
 import { NUKE_CHARGE_MAX } from '../game';
 import GameHeader from './GameHeader';
 import Arena from './Arena';
+import GameOverOverlay from './GameOverOverlay';
 import type { Screen } from '../types';
 
 interface GameScreenProps {
@@ -23,9 +24,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
     nukeCharge,
     nukeArmed,
     fireNuke,
-    rerollArmed,
-    turnsUntilReroll,
-    toggleRerollArm,
+    reset,
     shake,
     announcement,
   } = useGameStore();
@@ -38,7 +37,6 @@ export default function GameScreen({ navigate }: GameScreenProps) {
   // While armed the meter drains per push (use-it-or-lose-it) — the shrinking
   // fill bar under the NUKE label is the countdown.
   const nukeReady = nukeArmed;
-  const rerollReady = turnsUntilReroll === 0;
 
   return (
     <div className="app">
@@ -64,15 +62,8 @@ export default function GameScreen({ navigate }: GameScreenProps) {
             </div>
           )}
         </div>
-        <button
-          className={`ability-btn reroll-btn${rerollArmed ? ' ability-btn--armed' : rerollReady ? ' reroll-btn--ready' : ''}`}
-          onClick={toggleRerollArm}
-          disabled={!rerollReady || gameOver}
-        >
-          <span className="ability-btn-label">
-            {!rerollReady ? `↻ ${turnsUntilReroll}` : rerollArmed ? '↻ PICK…' : '↻ SWAP'}
-          </span>
-        </button>
+        {/* Balances the NUKE button so the combo badge stays centered */}
+        <div className="combo-strip-spacer" />
       </div>
       <div className={`arena-container${shake ? ` shake-${shake.tier}` : ''}`}>
         <div
@@ -92,7 +83,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
               transformOrigin: '0 0',
             }}
           >
-            <Arena navigate={navigate} />
+            <Arena />
           </div>
         </div>
         {announcement && (
@@ -108,6 +99,14 @@ export default function GameScreen({ navigate }: GameScreenProps) {
         )}
       </div>
       <div className="swipe-zone" />
+      {gameOver && (
+        <GameOverOverlay
+          score={score}
+          highScore={highScore}
+          onReset={reset}
+          onMenu={() => navigate('menu')}
+        />
+      )}
     </div>
   );
 }

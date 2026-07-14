@@ -1,4 +1,4 @@
-import type { Grid, GridCfg, Move, CollapseResult } from '../types';
+import type { Grid, GridCfg, Move, CollapseStage, CollapseResult } from '../types';
 import { DEFAULT_CFG } from './config';
 import { isCornerCell } from './corners';
 import { isStone } from './tiles';
@@ -45,42 +45,6 @@ function packLine(
     }
     i = segHi + 1;
   }
-}
-
-// Merge a sequence of move *batches* (each batch = one single-axis pass) into net per-tile moves —
-// e.g. A→B in one pass followed by B→C in a later pass (same value passing through the same cell)
-// becomes a single A→C move. Needed because obstacles (stones/corners) can make a tile's journey
-// span several vertical/horizontal sub-passes; without this the animation would show it
-// teleporting mid-flight.
-//
-// Matching is by (position, value), so it operates one batch at a time: within a single pass every
-// move is a distinct tile, and two different same-value tiles can coincidentally have one's
-// destination equal another's origin (packLine clears a segment before refilling it) — chaining
-// those together would wrongly fuse two tiles into one. So a batch's own moves are only checked
-// against *earlier* batches, and only added to the lookup map once the whole batch is done.
-function consolidateBatches(batches: Move[][]): Move[] {
-  const destToIdx = new Map<string, number>();
-  const result: Move[] = [];
-  for (const batch of batches) {
-    const touched: number[] = [];
-    for (const m of batch) {
-      const fromKey = `${m.fromRow},${m.fromCol},${m.value}`;
-      const existingIdx = destToIdx.get(fromKey);
-      if (existingIdx !== undefined) {
-        destToIdx.delete(fromKey);
-        result[existingIdx] = { ...result[existingIdx], toRow: m.toRow, toCol: m.toCol };
-        touched.push(existingIdx);
-      } else {
-        result.push({ ...m });
-        touched.push(result.length - 1);
-      }
-    }
-    for (const idx of touched) {
-      const mv = result[idx];
-      destToIdx.set(`${mv.toRow},${mv.toCol},${mv.value}`, idx);
-    }
-  }
-  return result.filter((m) => m.fromRow !== m.toRow || m.fromCol !== m.toCol);
 }
 
 export function collapseGrid(
@@ -141,24 +105,36 @@ export function collapseGrid(
   verticalPass(gravityMoves);
   const midGrid = newGrid.map((row) => [...row]);
 
-  // Stage 2 (animated second): horizontal settle, plus as many extra vertical/horizontal passes
-  // as needed to fully resolve the board. A single vertical+horizontal pass isn't always enough
-  // once obstacles (stones/corners) are involved — e.g. a tile that slides into a column via the
-  // horizontal pass may now have room to drop further in that column, which only a follow-up
-  // vertical pass reveals. Keep alternating until a full pass moves nothing, so no tile is left
-  // floating short of where it should settle.
-  const restBatches: Move[][] = [];
-  const initialHorizontal: Move[] = [];
-  horizontalPass(initialHorizontal);
-  restBatches.push(initialHorizontal);
+  // Stage 2+ (animated in order): the horizontal settle, plus as many extra vertical/horizontal
+  // passes as needed to fully resolve the board. A single vertical+horizontal pass isn't always
+  // enough once obstacles (stones/corners) are involved — e.g. a tile that slides into a column via
+  // the horizontal pass may now have room to drop further in that column, which only a follow-up
+  // vertical pass reveals. Keep alternating until a full pass moves nothing.
+  //
+  // Each pass is a single axis and is emitted as its own stage (with the grid snapshot to commit
+  // once it finishes) rather than merged into one net move. Merging a horizontal pass with a later
+  // vertical pass for the same tile would produce a move whose row AND column both change — a
+  // diagonal, which the straight-line flying-tile animation would render as a tile cutting across
+  // the board. Playing the passes sequentially keeps every animated move strictly horizontal or
+  // vertical: a corner-turning tile slides, settles, then drops.
+  const stages: CollapseStage[] = [];
+  const pushStage = (moves: Move[]) => {
+    if (moves.length > 0) stages.push({ moves, grid: newGrid.map((row) => [...row]) });
+  };
+
+  const firstHorizontal: Move[] = [];
+  horizontalPass(firstHorizontal);
+  pushStage(firstHorizontal);
+
   for (let guard = 0; guard < ROWS + COLS; guard++) {
     const extraVertical: Move[] = [];
     verticalPass(extraVertical);
+    pushStage(extraVertical);
     const extraHorizontal: Move[] = [];
     horizontalPass(extraHorizontal);
+    pushStage(extraHorizontal);
     if (extraVertical.length === 0 && extraHorizontal.length === 0) break;
-    restBatches.push(extraVertical, extraHorizontal);
   }
 
-  return { grid: newGrid, midGrid, gravityMoves, horizontalMoves: consolidateBatches(restBatches) };
+  return { grid: newGrid, midGrid, gravityMoves, horizontalMoves: firstHorizontal, stages };
 }

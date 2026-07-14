@@ -87,6 +87,8 @@ export function endTurn(
   // ── Clean sweep — the entire play area was emptied this turn ─────────────
   // Awarded once per turn, before corner settlement (corners refill themselves
   // and are excluded from the check). Bonus scales with how much was cleared.
+  // Pays a score bonus only — it does not refill the nuke meter (a free nuke on
+  // top of the score bonus made runs snowball).
   if (!get().cleanSweepAwarded && get().turnClearedTiles > 0 && isPlayAreaEmpty(grid, curCfg)) {
     const mult = Math.min(get().combo, MAX_COMBO);
     const bonus = CLEAN_SWEEP_BONUS_PER_TILE * get().turnClearedTiles * mult;
@@ -94,16 +96,8 @@ export function endTurn(
     triggerShake('big', get, set);
     announce('CLEAN SWEEP!', get, set, '#ffcc00');
     spawnScorePopup([[curCfg.CENTER_ROW, curCfg.CENTER_COL]], `+${bonus}`, mult, get, set);
-    // Half a nuke meter, not a full one — a sweep already pays a big score bonus,
-    // and a free full nuke on top made runs snowball. No accrual while armed.
-    const sweepState = get();
-    const sweepCharge = sweepState.nukeArmed
-      ? sweepState.nukeCharge
-      : Math.min(NUKE_CHARGE_MAX, sweepState.nukeCharge + NUKE_CHARGE_MAX / 2);
     set({
       score: get().score + bonus,
-      nukeCharge: sweepCharge,
-      nukeArmed: sweepState.nukeArmed || sweepCharge >= NUKE_CHARGE_MAX,
       cleanSweepAwarded: true,
     });
   }
@@ -200,7 +194,7 @@ export function runCollapseLoop(
   chargeNuke: boolean = true
 ): void {
   const { cfg } = get();
-  const { grid: collapsedGrid, midGrid, gravityMoves, horizontalMoves } =
+  const { grid: collapsedGrid, midGrid, gravityMoves, stages } =
     collapseGrid(grid, cfg, lastVerticalSide, lastHorizontalSide);
 
   const BOARD_WIPE_STAGGER_MS = 150;
@@ -283,35 +277,39 @@ export function runCollapseLoop(
     }
   };
 
-  const doHorizontalPhase = () => {
-    if (horizontalMoves.length === 0) { afterCollapse(collapsedGrid); return; }
+  // Play the post-gravity passes in order. Each stage is single-axis (horizontal or vertical) and
+  // commits its own grid snapshot before the next runs, so a tile that turns a corner around an
+  // obstacle animates as separate straight segments — never a diagonal slide.
+  const runStages = (i: number) => {
+    if (i >= stages.length) { afterCollapse(collapsedGrid); return; }
+    const stage = stages[i];
     const curLayout = get().layout;
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         set({
-          flyingTiles: horizontalMoves.map((m, idx) => ({
-            id: `collapse-h-${idx}`,
+          flyingTiles: stage.moves.map((m, idx) => ({
+            id: `collapse-s${i}-${idx}`,
             value: m.value,
             from: cellPos(m.fromRow, m.fromCol, curLayout),
             to: cellPos(m.toRow, m.toCol, curLayout),
             flyThrough: false,
           })),
-          collapsingCells: new Set(horizontalMoves.map((m) => `${m.fromRow},${m.fromCol}`)),
+          collapsingCells: new Set(stage.moves.map((m) => `${m.fromRow},${m.fromCol}`)),
         });
         setTimeout(() => {
-          set({ grid: collapsedGrid, flyingTiles: [], collapsingCells: new Set() });
-          afterCollapse(collapsedGrid);
+          set({ grid: stage.grid, flyingTiles: [], collapsingCells: new Set() });
+          runStages(i + 1);
         }, ANIM_MS + 30);
       })
     );
   };
 
-  if (gravityMoves.length === 0 && horizontalMoves.length === 0) {
+  if (gravityMoves.length === 0 && stages.length === 0) {
     afterCollapse(grid);
     return;
   }
 
-  if (gravityMoves.length === 0) { doHorizontalPhase(); return; }
+  if (gravityMoves.length === 0) { runStages(0); return; }
 
   const curLayout = get().layout;
   requestAnimationFrame(() =>
@@ -328,7 +326,7 @@ export function runCollapseLoop(
       });
       setTimeout(() => {
         set({ grid: midGrid, flyingTiles: [], collapsingCells: new Set() });
-        doHorizontalPhase();
+        runStages(0);
       }, ANIM_MS + 30);
     })
   );

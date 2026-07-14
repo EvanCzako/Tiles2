@@ -10,15 +10,12 @@ export const MAX_COMBO = 5;
 // armed the meter stops charging and drains NUKE_DECAY_PER_PUSH on every push;
 // if it drains to 0 the nuke is lost and charging restarts from empty
 // (use-it-or-lose-it — the nuke can't be banked as permanent insurance).
-export const NUKE_CHARGE_MAX = 24;
-export const NUKE_DECAY_PER_PUSH = 1;
-// Reroll: the player may reroll one pending strip, then must wait this many
-// turns (pushes) before the ability is available again.
-export const REROLL_COOLDOWN = 10;
+export const NUKE_CHARGE_MAX = 64;
+export const NUKE_DECAY_PER_PUSH = 2;
 // Clean sweep: emptying the entire play area in one turn awards
-// bonus = CLEAN_SWEEP_BONUS_PER_TILE × tiles cleared that turn × combo,
-// plus half a nuke meter. Scaling by tiles cleared keeps trivial
-// early-game sweeps from paying like late-game ones.
+// bonus = CLEAN_SWEEP_BONUS_PER_TILE × tiles cleared that turn × combo.
+// Scaling by tiles cleared keeps trivial early-game sweeps from paying
+// like late-game ones.
 export const CLEAN_SWEEP_BONUS_PER_TILE = 25;
 
 export function nextCombo(combo: number): number {

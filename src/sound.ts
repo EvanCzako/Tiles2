@@ -123,12 +123,6 @@ export function playCleanSweep(): void {
   tone(2093, { type: 'sine', dur: 0.4, gain: 0.06, when: 0.36 });
 }
 
-// Quick shuffle for the pending-strip reroll.
-export function playReroll(): void {
-  noise({ dur: 0.05, gain: 0.1, filterFreq: 3000 });
-  noise({ dur: 0.05, gain: 0.1, filterFreq: 3500, when: 0.07 });
-}
-
 // Descending three-note phrase on game over.
 export function playGameOver(): void {
   tone(330, { type: 'triangle', dur: 0.25, gain: 0.12 });

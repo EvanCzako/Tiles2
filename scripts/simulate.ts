@@ -33,9 +33,11 @@
  *   nukes/100t, medFillGap (turns to fill the meter), sweeps/game,
  *   rerolls/100t, lost/game (armed nukes that drained to 0 unfired)
  *
- * Calibration reference (July 2026, 8-value table, greedy): no abilities →
- * median ~250 turns / ~8% cap. A candidate tuning that keeps greedy cap%
- * under ~50% is a game where deaths are real for decent players.
+ * Calibration reference (July 2026, 9-value table, greedy): no abilities →
+ * median ~90 turns / 0% cap; shipped nuke-only tuning (64/d2, no reroll,
+ * no sweep refill) → median ~130 turns / ~0% cap — an arcade-length game
+ * where deaths stay real for decent players. The greedy bot is a floor for a
+ * skilled human, so treat its median as a lower bound on real run length.
  */
 import {
   GRID_CONFIGS,
@@ -58,7 +60,6 @@ import {
   MAX_COMBO,
   NUKE_CHARGE_MAX,
   NUKE_DECAY_PER_PUSH,
-  REROLL_COOLDOWN,
 } from '../src/game';
 import type { Grid, GridCfg, VerticalSide, HorizontalSide, PushResult } from '../src/types';
 
@@ -78,16 +79,19 @@ const PUSH_FNS: Record<Side, (g: Grid, p: number[], c: GridCfg) => PushResult> =
 interface Abilities {
   nukeMax: number; // Infinity = nuke disabled
   nukeDecay: number; // charge lost per push while armed
-  halfSweep: boolean; // clean sweep grants half a meter (false = full insta-fill)
+  sweepRefill: number; // fraction of the meter granted on a clean sweep (0 = none, 0.5 = half)
   rerollCooldown: number; // Infinity = reroll disabled
   nukeOccThreshold: number; // greedy bot holds the nuke until board ≥ this full
 }
 
+// Shipped game (July 2026): nuke only — no strip reroll, and the clean sweep
+// pays a score bonus without refilling the meter. The reroll knob is retained
+// below only for exploratory sweeps (Infinity = disabled, matching shipped).
 const SHIPPED: Abilities = {
   nukeMax: NUKE_CHARGE_MAX,
   nukeDecay: NUKE_DECAY_PER_PUSH,
-  halfSweep: true,
-  rerollCooldown: REROLL_COOLDOWN,
+  sweepRefill: 0,
+  rerollCooldown: Infinity,
   nukeOccThreshold: 0.5,
 };
 const NO_ABILITIES: Abilities = {
@@ -305,7 +309,7 @@ function playGame(policy: Policy, ab: Abilities): GameResult {
     let grid = c.grid;
     if (c.cleared > 0 && isPlayAreaEmpty(grid, cfg)) {
       sweeps++;
-      gainCharge(st, ab, ab.halfSweep ? ab.nukeMax / 2 : ab.nukeMax);
+      if (ab.sweepRefill > 0) gainCharge(st, ab, ab.nukeMax * ab.sweepRefill);
     }
     st.grid = settleLoop(st, grid, ab, true);
 
@@ -375,11 +379,13 @@ const DIST_CONFIGS: { name: string; weights: number[] }[] = [
   { name: 'flat9', weights: [1, 1, 1, 1, 1, 1, 1, 1, 1] },
 ];
 
+// Default sweep: the shipped nuke-only tuning against the no-ability floor,
+// plus a couple of reference points. Edit freely to explore new candidates.
 const ABILITY_CONFIGS: { name: string; ab: Abilities }[] = [
-  { name: 'no abilities', ab: NO_ABILITIES },
-  { name: 'shipped (24 cap, drain 1, half-sweep)', ab: SHIPPED },
-  { name: 'old tuning (12 cap, no drain, full sweep)', ab: { ...SHIPPED, nukeMax: 12, nukeDecay: 0, halfSweep: false } },
-  { name: 'shipped + drain 2', ab: { ...SHIPPED, nukeDecay: 2 } },
+  { name: 'no abilities (floor)', ab: NO_ABILITIES },
+  { name: 'shipped (nuke 64/d2, no reroll)', ab: SHIPPED },
+  { name: 'old (nuke 24/d1, sweep .5, reroll 10)', ab: { ...SHIPPED, nukeMax: 24, nukeDecay: 1, sweepRefill: 0.5, rerollCooldown: 10 } },
+  { name: 'shipped + reroll 10', ab: { ...SHIPPED, rerollCooldown: 10 } },
 ];
 
 const mode = process.argv[2] ?? 'abilities';

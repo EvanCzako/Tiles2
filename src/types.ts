@@ -48,11 +48,22 @@ export interface Move {
   toCol: number;
 }
 
+// One animation stage of the collapse: a batch of single-axis moves plus the grid
+// snapshot to commit once they finish. Stages are played in order so a tile that
+// turns a corner (slides then drops) animates as two straight segments, never a diagonal.
+export interface CollapseStage {
+  moves: Move[];
+  grid: Grid;
+}
+
 export interface CollapseResult {
   grid: Grid;
   midGrid: Grid;
   gravityMoves: Move[];
   horizontalMoves: Move[];
+  // Ordered post-gravity passes (first horizontal pass, then any extra vertical/horizontal
+  // passes needed to fully settle around obstacles). Each stage is a single axis.
+  stages: CollapseStage[];
 }
 
 export interface AnnihilateResult {
@@ -157,8 +168,6 @@ export interface GameState {
   colorPalette: PaletteId;
   nukeCharge: number;        // 0..NUKE_CHARGE_MAX — accrues while unarmed, drains while armed
   nukeArmed: boolean;        // meter filled; nuke fireable, meter decays per push until fired/lost
-  rerollArmed: boolean;      // true while the player is picking a strip to reroll
-  turnsUntilReroll: number;  // 0 = reroll ready
   turnClearedTiles: number;  // tiles cleared so far this turn (drives clean-sweep bonus)
   cleanSweepAwarded: boolean; // one clean-sweep award per turn
   scorePopups: ScorePopup[];
@@ -174,8 +183,6 @@ export interface GameActions {
   setColorPalette: (id: PaletteId) => void;
   triggerPush: (direction: Direction) => void;
   fireNuke: () => void;
-  toggleRerollArm: () => void;
-  rerollStrip: (side: PendingSide) => void;
   setSoundOn: (on: boolean) => void;
 }
 

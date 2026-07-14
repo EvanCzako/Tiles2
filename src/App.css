@@ -37,7 +37,7 @@ body {
   justify-content: center;
 }
 
-/* ── Ability buttons (nuke / reroll) ─────────────────────────────────────── */
+/* ── Ability button (nuke) ───────────────────────────────────────────────── */
 .ability-btn {
   position: relative;
   overflow: hidden;
@@ -85,34 +85,10 @@ body {
   animation: nuke-ready-pulse 1s ease-in-out infinite;
 }
 
-.ability-btn--armed {
-  color: #fff;
-  background: #3a7bd5;
-  border-color: #3a7bd5;
-}
-
-/* Swap available — calmer blue pulse than the nuke's urgent orange */
-@keyframes reroll-ready-pulse {
-  0%, 100% { box-shadow: 0 0 4px rgba(58, 123, 213, 0.35); }
-  50% { box-shadow: 0 0 14px rgba(58, 123, 213, 0.85); }
-}
-
-.reroll-btn--ready {
-  color: #cfe0ff;
-  border-color: #3a7bd5;
-  animation: reroll-ready-pulse 1.6s ease-in-out infinite;
-}
-
-/* ── Reroll strip-pick mode ──────────────────────────────────────────────── */
-@keyframes strip-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(58, 123, 213, 0.4); }
-  50% { box-shadow: 0 0 0 4px rgba(58, 123, 213, 0.85); }
-}
-
-.pending--armed {
-  cursor: pointer;
-  border-radius: 8px;
-  animation: strip-pulse 0.9s ease-in-out infinite;
+/* Invisible right-side counterweight to the NUKE button so the combo badge
+   stays centered in the strip. */
+.combo-strip-spacer {
+  min-width: 96px;
 }
 
 /* ── Floating score popups ───────────────────────────────────────────────── */
@@ -319,6 +295,9 @@ body {
   display: grid;
   gap: 4px;
   border-radius: 6px;
+  /* Own stacking context so the corner-zone frames (z-index: -1) sit behind the
+     tiles but can't slip below the arena. */
+  isolation: isolate;
 }
 
 .pending-row {
@@ -363,6 +342,20 @@ body {
   border-radius: 6px;
 }
 
+/* ── Corner obstacle zones ────────────────────────────────────────────────── */
+/* Frames the four 2×2 corner blocks so it's clear they follow their own
+   gravity/refill rules, distinct from the cool-blue center cross. Painted
+   behind the tiles (see .grid isolation). */
+.corner-zone {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border: 1.5px solid rgba(214, 170, 92, 0.45);
+  background: rgba(214, 170, 92, 0.08);
+  border-radius: 10px;
+  box-shadow: inset 0 0 14px rgba(214, 170, 92, 0.1);
+}
+
 
 
 @keyframes flash-collapse {
@@ -391,54 +384,124 @@ body {
 }
 
 .game-over-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(8, 8, 20, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
-  border-radius: 6px;
+  animation: game-over-fade 0.22s ease-out;
+}
+
+@keyframes game-over-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .game-over-box {
   background: #14142a;
-  border: 2px solid #3a3a6a;
-  border-radius: 10px;
-  padding: 28px 40px;
+  border: 1px solid #3a3a5c;
+  border-radius: 16px;
+  padding: 30px 32px;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: 20px;
+  width: min(300px, 82vw);
+  box-sizing: border-box;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55);
+  animation: game-over-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
-.game-over-box h2 {
-  color: #e04040;
-  font-size: 1.8rem;
-  font-weight: 800;
+@keyframes game-over-pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.game-over-title {
+  color: #ff5555;
+  font-size: 1.9rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
   margin: 0;
+  text-shadow: 0 0 22px rgba(255, 70, 70, 0.35);
 }
 
-.game-over-box p {
-  color: #a0a0cc;
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
+.game-over-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
 }
 
-.game-over-box button {
-  background: #3a7bd5;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 10px 24px;
-  font-size: 1rem;
+.game-over-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  background: #1c1c38;
+  border: 1px solid #2c2c50;
+  border-radius: 10px;
+  padding: 11px 16px;
+}
+
+.game-over-stat-label {
+  color: #8888aa;
+  font-size: 0.78rem;
   font-weight: 700;
-  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.game-over-box button:hover {
-  background: #4e8fe8;
+.game-over-stat-value {
+  color: #ffffff;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.game-over-stat-value--best {
+  color: #ffcc00;
+}
+
+.game-over-newbest {
+  color: #ffcc00;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: -6px 0 0;
+  animation: game-over-newbest 1.3s ease-in-out infinite;
+}
+
+@keyframes game-over-newbest {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.06);
+  }
+}
+
+.game-over-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
 }
 
 @keyframes flash-annihilate {
@@ -1002,17 +1065,5 @@ body {
 
 .settings-reset-btn:hover {
   filter: brightness(1.2);
-}
-
-/* ── Game Over: secondary menu button ─────────────────────────────────────── */
-
-.game-over-menu-btn {
-  background: #272744 !important;
-  color: #aaaacc !important;
-  border: 1px solid #3a3a5c !important;
-}
-
-.game-over-menu-btn:hover {
-  background: #33335a !important;
 }
 
