@@ -50,17 +50,74 @@ export const DEFAULT_SPAWN_WEIGHTS = [13, 12, 12, 11, 11, 10, 10, 9, 9];
 // gap is preserved, then harden the tail. An easier start would help careless
 // play survive the opening and narrow the very gap we want to widen.
 const RAMP_GRACE = 30;    // turns before hardening begins
-const RAMP_FULL = 300;    // turn the 1–9 value ramp reaches its flat max
-const RAMP_EASY = [13, 12, 12, 11, 11, 10, 10, 9, 9];    // turn 0: the current near-flat table
-const RAMP_HARD = [10, 10, 10, 10, 10, 10, 10, 10, 10];  // uniform over 9
-const TENTH_START = 120;  // value 10 begins appearing (a primary value-spread lever)
+const RAMP_FULL = 300;    // turn the value ramp reaches its flat max
+const TENTH_START = 120;  // the fade-in extra value begins appearing (a primary value-spread lever)
 const TENTH_FULL = 400;   // ...reaching parity with the other values
 const TENTH_MAX = 10;
+// Hard ceiling on distinct tile values: getTileColor / the tile palettes define
+// colors for 1–10 only (values >10 render as a white fallback), so the fade-in
+// extra value is suppressed once a board already spawns 10 base values.
+const MAX_VALUES = 10;
 const STONE_SLOPE = 0.0004; // stone chance added per turn past the grace window
 const STONE_MAX = 0.22;
 const LOCKED_START = 250;  // locks begin appearing
 const LOCKED_SLOPE = 0.0002;
 const LOCKED_MAX = 0.05;
+
+// ── Per-board value spread ───────────────────────────────────────────────────
+// Match scarcity is the survival governor, and it depends on both value count
+// and board area. A smaller board fills faster and offers less room to maneuver,
+// so it needs FEWER distinct values (more frequent matches) to survive as long
+// as 9x9; a larger board needs MORE values. Each board ramps from a near-flat
+// `easy` table (turn 0) toward a uniform `hard` table, with one extra value
+// (the fade-in "tenth") appearing mid-run — all scaled to the board's value
+// count. 9x9 keeps the shipped 9→10 curve byte-for-byte.
+interface BoardRamp {
+  easy: number[];  // turn-0 near-flat weights (length = value count)
+  hard: number[];  // uniform hard target (same length)
+}
+
+// Near-flat descending easy table 13→9 across n values, paired with a uniform
+// hard target. n=9 special-cased to the exact shipped table.
+function makeBoardRamp(n: number): BoardRamp {
+  if (n === 9) return { easy: [13, 12, 12, 11, 11, 10, 10, 9, 9], hard: Array(9).fill(10) };
+  const easy = Array.from({ length: n }, (_, i) => Math.round(13 - (4 * i) / (n - 1)));
+  return { easy, hard: Array(n).fill(10) };
+}
+
+// Turn-0 value counts per board. 9x9 is the reference (9 values → a 10th fades
+// in). Sim-tuned so 7x7 and 11x11 survival/score track 9x9 (see scripts/simulate.ts).
+export const BOARD_VALUE_COUNTS: Record<string, number> = {
+  '7x7': 7,
+  '9x9': 9,
+  '11x11': 10,
+};
+
+// Per-board stone-ramp multiplier — the fine-tuning lever after value count.
+// Value count is coarse (each step roughly doubles survival) and is capped at
+// MAX_VALUES, so a bigger board can't spread values further to compensate for
+// its extra room. 11x11 pinned at the 10-value ceiling still outlived 9x9 for
+// skilled play, and the roomy board shrugs off a mild stone bump, so its stones
+// ramp ~3x faster — reaching the shared STONE_MAX (22%) by ~turn 190 to give the
+// big board a comparable late-game choke. Sim-tuned so the planner bot's median
+// survival tracks 9x9 (see scripts/simulate.ts). 1.0 = shipped 9x9 rate; note
+// STONE_MAX is shared, so no board ever exceeds 9x9's peak stone density.
+export const BOARD_STONE_SCALE: Record<string, number> = {
+  '7x7': 1,
+  '9x9': 1,
+  '11x11': 3.0,
+};
+const DEFAULT_VALUE_COUNT = 9;
+
+let boardRamps: Record<string, BoardRamp> = Object.fromEntries(
+  Object.entries(BOARD_VALUE_COUNTS).map(([m, n]) => [m, makeBoardRamp(n)])
+);
+
+// Test hook: override a board's value count (rebuilds its ramp). Used by the
+// simulator's value-count sweep; the game always uses BOARD_VALUE_COUNTS.
+export function setBoardValueCount(board: string, n: number): void {
+  boardRamps = { ...boardRamps, [board]: makeBoardRamp(n) };
+}
 
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
 
@@ -71,17 +128,20 @@ export interface SpawnMix {
   locked: number;
 }
 
-// Spawn odds for a given turn. Pure — shared by the game, the simulator, and tests.
-export function rampedSpawn(turn: number): SpawnMix {
+// Spawn odds for a given turn on a given board. Pure — shared by the game, the
+// simulator, and tests. `board` selects the per-board value spread.
+export function rampedSpawn(turn: number, board = '9x9'): SpawnMix {
+  const { easy, hard } = boardRamps[board] ?? makeBoardRamp(DEFAULT_VALUE_COUNT);
   const d = clamp01((turn - RAMP_GRACE) / (RAMP_FULL - RAMP_GRACE));
-  const weights = RAMP_EASY.map((e, i) => e + d * (RAMP_HARD[i] - e));
+  const weights = easy.map((e, i) => e + d * (hard[i] - e));
   const tenth = clamp01((turn - TENTH_START) / (TENTH_FULL - TENTH_START)) * TENTH_MAX;
-  if (tenth > 0) weights.push(tenth);
+  if (tenth > 0 && weights.length < MAX_VALUES) weights.push(tenth);
   const past = Math.max(0, turn - RAMP_GRACE);
+  const stoneScale = BOARD_STONE_SCALE[board] ?? 1;
   return {
     weights,
     bomb: BOMB_CHANCE,
-    stone: Math.min(STONE_MAX, STONE_CHANCE + past * STONE_SLOPE),
+    stone: Math.min(STONE_MAX, STONE_CHANCE + past * STONE_SLOPE * stoneScale),
     locked: Math.min(LOCKED_MAX, Math.max(0, turn - LOCKED_START) * LOCKED_SLOPE),
   };
 }
@@ -92,10 +152,11 @@ let curBomb = BOMB_CHANCE;
 let curStone = STONE_CHANCE;
 let curLocked = LOCKED_CHANCE;
 
-// Apply the ramp for a given turn — the game calls this before each push, the
-// simulator before each turn, so both follow the identical difficulty curve.
-export function setDifficulty(turn: number): void {
-  const m = rampedSpawn(turn);
+// Apply the ramp for a given turn on a given board — the game calls this before
+// each push, the simulator before each turn, so both follow the identical
+// difficulty curve for that board.
+export function setDifficulty(turn: number, board = '9x9'): void {
+  const m = rampedSpawn(turn, board);
   spawnWeights = m.weights;
   curBomb = m.bomb;
   curStone = m.stone;

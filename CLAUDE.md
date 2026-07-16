@@ -46,7 +46,7 @@ Corner cells are identified by `isCornerCell(r, c, cfg)` (exported from `src/gam
 | `'9x9'` | 9 | 9 | 5 | 2 | 2 | 4 | 4 |
 | `'11x11'` | 11 | 11 | 7 | 2 | 2 | 5 | 5 |
 
-All three are selectable via the **Boards** menu path (`GridMode = '7x7' | '9x9' | '11x11'`); `'9x9'` is the default. Corner blocks are always 2×2 (`PENDING_ROW_START = 2`); only the central cross width (`PENDING_SIZE`, i.e. the pending-strip length) and overall size differ. Tile distributions are shared across sizes for now (to be tuned per-size later). All layout/rendering is `cfg`-driven, so `useScale` fits each size to the viewport.
+All three are selectable via the **Boards** menu path (`GridMode = '7x7' | '9x9' | '11x11'`); `'9x9'` is the default. Corner blocks are always 2×2 (`PENDING_ROW_START = 2`); only the central cross width (`PENDING_SIZE`, i.e. the pending-strip length) and overall size differ. Tile distributions are **tuned per-size** so all three boards play at 9×9-like difficulty (see the Difficulty ramp section — smaller boards spawn fewer distinct values, the largest ramps stones faster). All layout/rendering is `cfg`-driven, so `useScale` fits each size to the viewport.
 
 ## Pending Tiles
 There are **4 pending rows/columns** (one on each side), each containing `PENDING_SIZE` tiles aligned with rows/cols `PENDING_ROW_START` through `PENDING_ROW_START + PENDING_SIZE - 1`. On a swipe the pending strip for that side is pushed into the active area. Refreshed pending values are committed immediately (the strip always shows a full set of tiles — no zeroing during cascade).
@@ -54,10 +54,10 @@ There are **4 pending rows/columns** (one on each side), each containing `PENDIN
 All 5 pending tiles always land on push, even if a row/column is entirely empty (no fly-throughs).
 
 ### Difficulty ramp (`rampedSpawn`/`setDifficulty` in `game/tiles.ts`)
-Spawn odds evolve with **turns survived** (`turnCount`), because survival is governed by *match scarcity* — two same-value tiles must land adjacent to clear. Both the store (before each push, in `triggerPush`) and the simulator (per turn) call `setDifficulty(turn)` so they share one curve. `rampedSpawn(turn)` returns `{ weights, bomb, stone, locked }`:
-- **Value weights:** start at the near-flat 9-value table `[13,12,12,11,11,10,10,9,9]` (turn 0 — the current difficulty, *not* an easier onboarding table; an easier start narrows the skill gap) and flatten toward uniform, with a **10th value** fading in mid-run. Flatter/wider → neighbours share a value less often, and board-wide wipes clear fewer copies.
-- **Stones ramp up** (`STONE_CHANCE` 3% → `STONE_MAX` 22%) — the *unbounded* clutter lever (stones can't be repositioned into a match, so they pile up); this is what caps runaway games. **Bomb stays flat**; **locked** fades in late.
-- All knobs (`RAMP_GRACE/FULL`, `RAMP_EASY/HARD`, `TENTH_*`, `STONE_*`, `LOCKED_*`) live at the top of the ramp block. Sim-tuned so the 2-ply "planner" bot's 800-turn "unloseable" rate is ~0% (was 7.7% on the static table) while typical difficulty and the skilled-vs-random gap are unchanged. `DEFAULT_SPAWN_WEIGHTS` is now only a static reference for the simulator's non-ramped `dist` sweep.
+Spawn odds evolve with **turns survived** (`turnCount`), because survival is governed by *match scarcity* — two same-value tiles must land adjacent to clear. The ramp is also **per-board**: both the store (before each push, in `triggerPush`) and the simulator (per turn) call `setDifficulty(turn, gridMode)`, so each board follows its own tuned curve. `rampedSpawn(turn, board)` returns `{ weights, bomb, stone, locked }`:
+- **Value weights (the primary per-board lever):** each board starts at a near-flat `easy` table of `BOARD_VALUE_COUNTS[board]` values and flattens toward a uniform `hard` table, with one extra value fading in mid-run (`TENTH_*`) up to the `MAX_VALUES = 10` color ceiling. **9×9 = 9 values** (byte-identical to the shipped `[13,12,12,11,11,10,10,9,9]` → 10th fades in). Match scarcity depends on *both* value count and board area, so a smaller board (fills faster, less room) needs **fewer** values to survive as long: **7×7 = 7**, **11×11 = 10** (pinned at the ceiling). Fewer values → neighbours share a value more often → more matches. `makeBoardRamp(n)` builds each table (9 special-cased to the exact literal).
+- **Stones ramp up** (`STONE_CHANCE` 3% → `STONE_MAX` 22%) — the *unbounded* clutter lever (stones can't be repositioned into a match, so they pile up); this is what caps runaway games. `BOARD_STONE_SCALE[board]` multiplies the slope: **11×11 = 3.0** (the roomy board is pinned at the 10-value ceiling yet still outlives 9×9 for skilled play, so its stones reach the shared `STONE_MAX` by ~turn 190 — the shared cap means no board exceeds 9×9's peak stone density). 7×7/9×9 = 1.0. **Bomb stays flat**; **locked** fades in late.
+- **Balance:** sim-tuned (`npm run sim -- boards`) so the 2-ply "planner" bot's median survival matches across sizes (~206/206/212 turns for 7×7/9×9/11×11) and random-mashing is tight (~66/68/70); mid-skill (greedy) is a bit more forgiving on the non-default boards, an unavoidable artifact of the coarse integer value-count lever (each step ≈2× survival). Knobs (`RAMP_GRACE/FULL`, `TENTH_*`, `MAX_VALUES`, `STONE_*`, `LOCKED_*`, `BOARD_VALUE_COUNTS`, `BOARD_STONE_SCALE`) live at the top of the ramp block. `DEFAULT_SPAWN_WEIGHTS` is now only a static reference for the simulator's non-ramped `dist` sweep.
 
 Adjacent pending tiles are never the same value.
 
@@ -213,7 +213,7 @@ soundOn             // sound toggle (persisted)
 - `runCollapseLoop(..., combo, chargeNuke)` — recursive cascade; accrues nuke charge, plays sounds, spawns popups/shake/announcements per wave. `chargeNuke=false` for nuke-initiated cascades.
 - `nukeCenterAndSettle(...)` — nuke flash/sound/shake/announcement → clear the center plus → `runCollapseLoop` at combo MAX_COMBO with `chargeNuke=false`. Invoked only by the `fireNuke` store action.
 
-High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'` as a JSON object (`{ '9x9': number, '11x11': number, ... }`).
+High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'` as a JSON object (`{ '7x7': number, '9x9': number, '11x11': number }`). The **selected board** is likewise persisted (`loadGridMode`/`saveGridMode`, key `'tilesGridMode'`), so a reload reopens the last-played board and `initState()` defaults to it — this is why the store's live `highScore` (surfaced on the menu / settings) always reflects the current board rather than a global best. `setGridMode` saves the mode; game-over saves the score under `get().gridMode`.
 
 ---
 
@@ -252,12 +252,14 @@ src/
   sound.ts        — synthesized WebAudio SFX (see Juice section)
   layout.ts       — getLayout, cellPos, *PendingPos helpers
 scripts/
-  simulate.ts     — headless balance simulator (`npm run sim -- ramp|dist|abilities [games]`);
+  simulate.ts     — headless balance simulator (`npm run sim -- boards|ramp|vcount|dist|abilities [games]`);
                     plays full games with the real game logic under three bots:
                     random, greedy (1-ply), planner (2-ply lookahead + survival). `ramp`
-                    (default) models the shipped difficulty ramp; `dist` is a static,
-                    non-ramped spawn-distribution sweep (endpoint tuning); `abilities`
-                    sweeps nuke tuning. Use it to tune spawn/ramp/ability changes.
+                    (default) models the shipped 9×9 difficulty ramp; `boards` runs all
+                    three sizes side-by-side under their per-board ramps; `vcount <board>`
+                    sweeps a board's turn-0 value count; `dist` is a static, non-ramped
+                    spawn-distribution sweep (endpoint tuning); `abilities` sweeps nuke
+                    tuning. Use it to tune spawn/ramp/ability/per-size changes.
 ```
 
 ## Components

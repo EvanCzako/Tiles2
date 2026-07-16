@@ -10,13 +10,13 @@ import {
   setDifficulty,
 } from '../game';
 import { getLayout } from '../layout';
-import { loadHighScore, loadColorPalette, loadSoundOn } from './persistence';
+import { loadHighScore, loadColorPalette, loadSoundOn, loadGridMode } from './persistence';
 
-export function initState(mode: GridMode = '9x9'): GameState {
+export function initState(mode: GridMode = loadGridMode()): GameState {
   const cfg = GRID_CONFIGS[mode];
   const layout = getLayout(cfg);
   // Reset the difficulty ramp to turn 0 before generating the starting board/pending.
-  setDifficulty(0);
+  setDifficulty(0, mode);
   return {
     gridMode: mode,
     cfg,

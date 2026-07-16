@@ -29,7 +29,7 @@ import {
   NUKE_DECAY_PER_PUSH,
 } from '../game';
 import { initState } from './init';
-import { saveHighScore, saveColorPalette, saveSoundOn, loadSoundOn } from './persistence';
+import { saveHighScore, saveColorPalette, saveSoundOn, loadSoundOn, saveGridMode } from './persistence';
 import { runCollapseLoop, nukeCenterAndSettle } from './animations';
 import { setSoundEnabled, playPush, playGameOver } from '../sound';
 
@@ -40,7 +40,7 @@ const useGameStore = create<GameStore>((set, get) => ({
 
   reset() { set(initState(get().gridMode)); },
   resetHighScore() { saveHighScore(get().gridMode, 0); set({ highScore: 0 }); },
-  setGridMode(mode: GridMode) { set(initState(mode)); },
+  setGridMode(mode: GridMode) { saveGridMode(mode); set(initState(mode)); },
   setColorPalette(id) { saveColorPalette(id); set({ colorPalette: id }); },
   setSoundOn(on) { saveSoundOn(on); setSoundEnabled(on); set({ soundOn: on }); },
 
@@ -65,7 +65,7 @@ const useGameStore = create<GameStore>((set, get) => ({
     if (s.animating || s.gameOver) return;
     // Advance the difficulty ramp for this push before any new pending is generated.
     const turn = s.turnCount + 1;
-    setDifficulty(turn);
+    setDifficulty(turn, s.gridMode);
     // Armed nuke meter drains per push; fully drained = nuke lost, recharge from 0.
     const drainedCharge = s.nukeArmed ? s.nukeCharge - NUKE_DECAY_PER_PUSH : s.nukeCharge;
     set({

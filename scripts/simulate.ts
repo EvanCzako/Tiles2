@@ -1,9 +1,11 @@
 /**
  * Headless UNTILED balance simulator.
  *
- * Run with:   npm run sim -- dist          (spawn-distribution sweep)
+ * Run with:   npm run sim -- boards        (7x7/9x9/11x11 side-by-side, shipped ramp)
+ *             npm run sim -- vcount 7x7    (per-board value-count sweep: 7x7 or 11x11)
+ *             npm run sim -- dist          (spawn-distribution sweep)
  *             npm run sim -- abilities     (nuke/reroll tuning sweep)
- *             npm run sim -- dist 200      (optional: games per config, default 50)
+ *             npm run sim -- boards 200    (optional: games per config, default 50)
  *
  * Imports the REAL game logic from src/game — no forked rules — and replicates
  * the store's turn pipeline exactly:
@@ -52,6 +54,8 @@ import {
   createInitialPending,
   setSpawnWeights,
   setDifficulty,
+  setBoardValueCount,
+  BOARD_VALUE_COUNTS,
   resetSpecials,
   DEFAULT_SPAWN_WEIGHTS,
   pushFromLeft,
@@ -72,7 +76,10 @@ import {
 } from '../src/game';
 import type { Grid, GridCfg, VerticalSide, HorizontalSide, PushResult } from '../src/types';
 
-const cfg: GridCfg = GRID_CONFIGS['9x9'];
+// Active board config — mutable so the `boards` mode can sweep 7x7/9x9/11x11.
+// `boardMode` is the matching mode key threaded into the board-aware ramp.
+let cfg: GridCfg = GRID_CONFIGS['9x9'];
+let boardMode = '9x9';
 const TURN_CAP = 800;
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
@@ -124,7 +131,7 @@ interface SimState {
 function newGame(ramp: boolean): SimState {
   // Ramp mode: reset difficulty to turn 0 before generating the board. Static
   // mode: leave the caller's setSpawnWeights in place, just base the specials.
-  if (ramp) setDifficulty(0);
+  if (ramp) setDifficulty(0, boardMode);
   else resetSpecials();
   return {
     grid: createInitialGrid(cfg),
@@ -316,7 +323,7 @@ function playGame(policy: Policy, ab: Abilities, ramp: boolean): GameResult {
 
   for (; turns < TURN_CAP; turns++) {
     // Advance the difficulty ramp for this turn (ramp mode only).
-    if (ramp) setDifficulty(turns + 1);
+    if (ramp) setDifficulty(turns + 1, boardMode);
     // Fire the nuke under pressure, or just before the armed meter expires
     if (
       st.armed &&
@@ -469,7 +476,35 @@ const POLICIES = [
 const mode = process.argv[2] ?? 'ramp';
 const games = Number(process.argv[3] ?? 50);
 
-if (mode === 'ramp') {
+if (mode === 'boards') {
+  // Compare all three board sizes under the shipped ramp, all playstyles.
+  for (const m of ['7x7', '9x9', '11x11'] as const) {
+    cfg = GRID_CONFIGS[m];
+    boardMode = m;
+    console.log(
+      `\n=== ${m} (${BOARD_VALUE_COUNTS[m]} values) — difficulty ramp (shipped), 3 playstyles, ${games} games ===`
+    );
+    console.log(HEADER);
+    for (const policy of POLICIES) runConfig(policy.name, policy.fn, SHIPPED, games, true);
+  }
+} else if (mode === 'vcount') {
+  // Value-count sweep: for one board, try several turn-0 value counts to find
+  // the one whose survival/score tracks 9x9. Usage: npm run sim -- vcount 7x7 [games]
+  const board = (process.argv[3] ?? '7x7') as keyof typeof GRID_CONFIGS;
+  const nGames = Number(process.argv[4] ?? 50);
+  const counts = board === '7x7' ? [5, 6, 7, 8, 9] : board === '11x11' ? [9, 10, 11] : [7, 8, 9, 10, 11];
+  cfg = GRID_CONFIGS[board];
+  boardMode = board;
+  for (const policy of POLICIES) {
+    console.log(`\n=== ${board} value-count sweep — ${policy.name}, ramp on, ${nGames} games ===`);
+    console.log(HEADER);
+    for (const n of counts) {
+      setBoardValueCount(board, n);
+      runConfig(`${n} values`, policy.fn, SHIPPED, nGames, true);
+    }
+    setBoardValueCount(board, BOARD_VALUE_COUNTS[board]); // restore
+  }
+} else if (mode === 'ramp') {
   // The shipped game: difficulty ramp on, all three playstyles.
   console.log(`\n=== difficulty ramp (shipped) — 3 playstyles, shipped abilities, ${games} games ===`);
   console.log(HEADER);
@@ -490,6 +525,6 @@ if (mode === 'ramp') {
   console.log(HEADER);
   for (const c of ABILITY_CONFIGS) runConfig(c.name, greedyPolicy, c.ab, games, true);
 } else {
-  console.error(`Unknown mode "${mode}" — use "ramp", "dist", or "abilities".`);
+  console.error(`Unknown mode "${mode}" — use "boards", "ramp", "dist", or "abilities".`);
   process.exit(1);
 }

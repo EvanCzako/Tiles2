@@ -1,9 +1,10 @@
-import type { PaletteId } from '../types';
-import { PALETTE_IDS } from '../game';
+import type { PaletteId, GridMode } from '../types';
+import { PALETTE_IDS, GRID_CONFIGS } from '../game';
 
 const SCORES_KEY = 'tilesHighScores';
 const PALETTE_KEY = 'tilesColorPalette';
 const SOUND_KEY = 'tilesSoundOn';
+const GRID_MODE_KEY = 'tilesGridMode';
 
 export function loadHighScores(): Record<string, number> {
   if (typeof window === 'undefined') return {};
@@ -24,6 +25,17 @@ export function saveHighScore(mode: string, score: number): void {
   const scores = loadHighScores();
   scores[mode] = score;
   localStorage.setItem(SCORES_KEY, JSON.stringify(scores));
+}
+
+export function loadGridMode(): GridMode {
+  if (typeof window === 'undefined') return '9x9';
+  const saved = localStorage.getItem(GRID_MODE_KEY);
+  return saved && saved in GRID_CONFIGS ? (saved as GridMode) : '9x9';
+}
+
+export function saveGridMode(mode: GridMode): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(GRID_MODE_KEY, mode);
 }
 
 export function loadColorPalette(): PaletteId {

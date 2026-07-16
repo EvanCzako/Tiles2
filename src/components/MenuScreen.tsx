@@ -10,6 +10,7 @@ interface MenuScreenProps {
 
 export default function MenuScreen({ navigate }: MenuScreenProps) {
   const highScore = useGameStore((s) => s.highScore);
+  const gridMode = useGameStore((s) => s.gridMode);
 
   return (
     <div className="menu-screen">
@@ -41,7 +42,11 @@ export default function MenuScreen({ navigate }: MenuScreenProps) {
         <button className="menu-btn menu-btn--secondary" onClick={() => navigate('settings')}>
           Settings
         </button>
-        {highScore > 0 && <p className="menu-best">Best: {highScore.toLocaleString()}</p>}
+        {highScore > 0 && (
+          <p className="menu-best">
+            {gridMode.replace('x', ' × ')} Best: {highScore.toLocaleString()}
+          </p>
+        )}
       </div>
     </div>
   );

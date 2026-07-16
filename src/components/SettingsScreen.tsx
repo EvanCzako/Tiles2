@@ -105,6 +105,7 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
           <div className="settings-row">
             <div className="settings-row-text">
               <p className="settings-label">High Score</p>
+              <p className="settings-sublabel">{gridMode.replace('x', ' × ')} board</p>
               <p className="settings-high-score">{highScore.toLocaleString()}</p>
             </div>
             <button className="settings-reset-btn" onClick={resetHighScore}>
