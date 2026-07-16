@@ -52,7 +52,7 @@ There are **4 pending rows/columns** (one on each side), each containing `PENDIN
 
 All 5 pending tiles always land on push, even if a row/column is entirely empty (no fly-throughs).
 
-Tile distribution: 9 values with a mild low-skew — 1 (~19%), 2 (~16%), 3 (~14%), 4 (~12%), 5 (~10%), 6 (~9%), 7 (~8%), 8 (~7%), 9 (~6%). Adjacent pending tiles are never the same value.
+Tile distribution: 9 values, **nearly flat** — weights `[13,12,12,11,11,10,10,9,9]` (~13% down to ~9%). Deliberately harder than the old low-skew table so careless play fills the board faster while planned high-combo cascades are rewarded more (see `DEFAULT_SPAWN_WEIGHTS` in `game/tiles.ts`; tuned via `scripts/simulate.ts`). Adjacent pending tiles are never the same value.
 
 ---
 
@@ -116,7 +116,7 @@ All moves are `{ value, fromRow, fromCol, toRow, toCol }`.
 
 ## Combo System
 ```
-MAX_COMBO = 5   // combo (and score multiplier) cap per cascade wave
+MAX_COMBO = 8   // combo (and score multiplier) cap per cascade wave
 ```
 
 - Combo starts at 1 per turn and increments each cascade wave via `nextCombo(combo)`, capped at MAX_COMBO.
@@ -131,7 +131,7 @@ The nuke is the only player ability (tuned July 2026 for arcade-length runs — 
 
 - **Chargeable nuke:** each annihilation wave adds its combo multiplier to `nukeCharge` while unarmed (a chime plays when the meter fills). At NUKE_CHARGE_MAX the meter **arms** (`nukeArmed`): charging stops and every push drains NUKE_DECAY_PER_PUSH — if it drains to 0 the nuke is lost and recharging restarts from empty. The nuke is full strength at any armed charge level; the draining bar is only a countdown. The NUKE button (left of the combo badge) shows `☢ N/64`, pulses while armed, and fires via click or **Space** (`fireNuke` action, gated on `nukeArmed`):
   1. Red-orange flash (`nukeFlashSet`) of the blast shape — a **5×5 plus** at the board center (`nukePlusCells`: center cell + its 2 nearest orthogonal neighbours in each of the 4 directions) — big screen shake, "NUKE!" announcement.
-  2. Clear only the non-empty plus cells and score them × MAX_COMBO (5) — `nukeCrossScore` uses base values so specialty flags don't inflate the score.
+  2. Clear only the non-empty plus cells and score them × MAX_COMBO (8) — `nukeCrossScore` uses base values so specialty flags don't inflate the score.
   3. Run the collapse loop at combo = MAX_COMBO with `chargeNuke=false` (nuke fallout can't recharge the meter; charging resumes next turn).
 
 ## Clean Sweep
@@ -213,7 +213,7 @@ High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'
 Simple `useState('menu')` router. Screens: `'menu'` → `'game'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
 
 ## Combo Strip
-A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift) and holds three zones: the NUKE charge button (left), the combo badge slot (center), and an invisible spacer (`.combo-strip-spacer`, right) that counterweights the NUKE button so the badge stays centered. When `combo >= 2` the center renders an animated `×N` badge (CSS class `combo-strip-badge`) using `COMBO_COLORS` (grey→yellow→orange→red-orange→red). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
+A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift) and holds three zones: the NUKE charge button (left), the combo badge slot (center), and an invisible spacer (`.combo-strip-spacer`, right) that counterweights the NUKE button so the badge stays centered. When `combo >= 2` the center renders an animated `×N` badge (CSS class `combo-strip-badge`) using `COMBO_COLORS` (8-step ramp, grey→yellow→orange→red-orange→red→magenta→purple→white-hot, one per combo level). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
 
 ## Source Layout
 ```

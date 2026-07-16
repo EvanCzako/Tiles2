@@ -67,7 +67,7 @@ export default function Arena() {
           style={{
             left: p.x,
             top: p.y,
-            color: COMBO_COLORS[Math.min(p.tier, 5) - 1],
+            color: COMBO_COLORS[Math.min(p.tier, COMBO_COLORS.length) - 1],
             fontSize: `${1 + Math.min(p.tier, 5) * 0.22}rem`,
           }}
         >

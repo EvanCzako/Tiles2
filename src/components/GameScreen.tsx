@@ -33,7 +33,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
   const scale = useScale(CONTAINER_W, CONTAINER_H);
   useInput(triggerPush, fireNuke);
 
-  const comboColor = COMBO_COLORS[Math.min(combo - 1, 4)];
+  const comboColor = COMBO_COLORS[Math.min(combo - 1, COMBO_COLORS.length - 1)];
   // While armed the meter drains per push (use-it-or-lose-it) — the shrinking
   // fill bar under the NUKE label is the countdown.
   const nukeReady = nukeArmed;

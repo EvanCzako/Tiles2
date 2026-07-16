@@ -2,7 +2,7 @@ import type { Grid, GridCfg, NukeCrossResult } from '../types';
 import { DEFAULT_CFG } from './config';
 import { baseValue } from './tiles';
 
-export const MAX_COMBO = 5;
+export const MAX_COMBO = 8;
 
 // ── Player abilities ─────────────────────────────────────────────────────────
 // Nuke: each annihilation wave adds its combo multiplier to the charge meter.

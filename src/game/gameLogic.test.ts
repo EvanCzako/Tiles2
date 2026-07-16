@@ -1282,13 +1282,13 @@ describe('nextCombo', () => {
     expect(nextCombo(4)).toBe(5);
   });
 
-  test('caps at MAX_COMBO (5)', () => {
-    expect(nextCombo(5)).toBe(5);
-    expect(nextCombo(10)).toBe(5);
+  test('caps at MAX_COMBO (8)', () => {
+    expect(nextCombo(8)).toBe(8);
+    expect(nextCombo(10)).toBe(8);
   });
 
-  test('ability constants: MAX_COMBO 5, positive nuke charge & sweep bonus', () => {
-    expect(MAX_COMBO).toBe(5);
+  test('ability constants: MAX_COMBO 8, positive nuke charge & sweep bonus', () => {
+    expect(MAX_COMBO).toBe(8);
     expect(NUKE_CHARGE_MAX).toBeGreaterThan(0);
     expect(CLEAN_SWEEP_BONUS_PER_TILE).toBeGreaterThan(0);
   });

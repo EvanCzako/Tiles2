@@ -32,11 +32,12 @@ export function baseValue(v: number): number {
 }
 
 // Spawn weights for tile values 1..N (index i → value i+1; needn't sum to 100).
-// Mild low-skew over 9 values: keeps low-value board wipes frequent (generous
-// feel) while the scarce top values accumulate as late-board threats. Headless
-// sims show the rarest value is the main difficulty lever — shorter tables are
-// near-unloseable.
-export const DEFAULT_SPAWN_WEIGHTS = [19, 16, 14, 12, 10, 9, 8, 7, 6];
+// Nearly-flat over 9 values: intentionally harder than the old low-skew table so
+// careless play fills the board faster, while planned multi-wave cascades (now up
+// to combo 8) are rewarded proportionally more. Headless sims show this widens the
+// skilled-vs-random gap in both survival and score. Adding a 10th value overshoots
+// (crushes casual runs and paradoxically narrows the skill gap), so 9 values stays.
+export const DEFAULT_SPAWN_WEIGHTS = [13, 12, 12, 11, 11, 10, 10, 9, 9];
 
 // Overridable so the simulator (scripts/simulate.ts) can test alternative
 // distributions against the real game logic. The game itself never calls this.
