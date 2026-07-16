@@ -1,11 +1,12 @@
 interface GameOverOverlayProps {
   score: number;
   highScore: number;
+  turns: number;
   onReset: () => void;
   onMenu?: () => void;
 }
 
-export default function GameOverOverlay({ score, highScore, onReset, onMenu }: GameOverOverlayProps) {
+export default function GameOverOverlay({ score, highScore, turns, onReset, onMenu }: GameOverOverlayProps) {
   const isNewBest = score > 0 && score >= highScore;
 
   return (
@@ -17,6 +18,10 @@ export default function GameOverOverlay({ score, highScore, onReset, onMenu }: G
           <div className="game-over-stat">
             <span className="game-over-stat-label">Score</span>
             <span className="game-over-stat-value">{score.toLocaleString()}</span>
+          </div>
+          <div className="game-over-stat">
+            <span className="game-over-stat-label">Turns</span>
+            <span className="game-over-stat-value">{turns.toLocaleString()}</span>
           </div>
           <div className="game-over-stat">
             <span className="game-over-stat-label">Best</span>

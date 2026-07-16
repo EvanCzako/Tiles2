@@ -16,6 +16,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
   const {
     score,
     highScore,
+    turnCount,
     combo,
     triggerPush,
     layout,
@@ -102,6 +103,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
         <GameOverOverlay
           score={score}
           highScore={highScore}
+          turns={turnCount}
           onReset={reset}
           onMenu={() => navigate('menu')}
         />
