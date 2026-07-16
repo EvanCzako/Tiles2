@@ -18,15 +18,22 @@
  * so alternative tile counts/weights are tested against unmodified logic.
  * Edit DIST_CONFIGS / ABILITY_CONFIGS below to test new candidates.
  *
- * Player models (both weaker than a skilled human — treat results as bounds):
- *   random — uniform choice among available directions (button-mashing floor)
- *   greedy — 1-ply: maximizes immediate cascade score, ties broken toward the
- *            emptier resulting board; fires the nuke when the board is ≥ 50%
- *            full or the armed meter is about to expire; rerolls a random strip
- *            when nothing scores and the board is > 50% full
+ * Player models (all weaker than a strong human — treat results as bounds):
+ *   random  — uniform choice among available directions (button-mashing floor)
+ *   greedy  — 1-ply: maximizes immediate cascade score, ties broken toward the
+ *             emptier resulting board. No survival instinct — can walk into a
+ *             dead board.
+ *   planner — 2-ply lookahead (SMART_DEPTH): values a move by its cascade score
+ *             plus the best follow-up it enables, minus a full-board penalty and
+ *             a large penalty for reaching a no-legal-move position. Passes up
+ *             small clears to set up bigger cascades and to stay alive.
+ * The nuke (fired when the board is ≥ 50% full or the armed meter is about to
+ * expire) and the optional strip reroll are handled in the shared game loop, so
+ * every policy uses them identically.
  *
  * Metrics per config:
  *   medTurns  — median pushes survived (capped at TURN_CAP)
+ *   avgTurns  — mean pushes survived
  *   cap%      — share of games still alive at TURN_CAP ("effectively unloseable")
  *   avgOcc    — mean play-area fill fraction (difficulty pressure proxy)
  *   medScore  — median final score (clean-sweep score bonus NOT included)
@@ -218,6 +225,65 @@ const greedyPolicy: Policy = (st, sides) => {
   return { side: best, bestScore };
 };
 
+// "planner" — a stronger stand-in for intentional play. Unlike greedy (which
+// grabs the best immediate clear and can walk straight into a dead board), it
+// looks SMART_DEPTH pushes ahead: a move is valued by its cascade score plus the
+// best follow-up it enables, minus a penalty for leaving the board full and a
+// large penalty for reaching a position with no legal move. So it will pass up a
+// small clear to set up a bigger cascade and to stay alive — the two things a
+// thoughtful human does that a 1-ply bot doesn't. Still weaker than a strong
+// human (fixed depth, no long-horizon combo construction), so treat it as a
+// tighter — but still conservative — upper bound.
+const SMART_DEPTH = 2;
+const SMART_OCC_W = 150; // score-equivalent penalty for a fully-occupied leaf board
+const SMART_DEAD = 1e6; // penalty for reaching a board with no legal move
+
+const nextV = (s: Side, v: VerticalSide): VerticalSide => (s === 'top' ? 'top' : s === 'bottom' ? 'bottom' : v);
+const nextH = (s: Side, h: HorizontalSide): HorizontalSide => (s === 'left' ? 'left' : s === 'right' ? 'right' : h);
+
+// Best achievable (accumulated cascade score − leaf occupancy penalty) reachable
+// from this board within `depth` pushes. Uses the real push+cascade logic.
+function smartEval(
+  grid: Grid,
+  pending: Record<Side, number[]>,
+  vSide: VerticalSide,
+  hSide: HorizontalSide,
+  depth: number
+): number {
+  if (depth === 0) return -SMART_OCC_W * occupancy(grid);
+  const sides = availableSides(grid);
+  if (sides.length === 0) return -SMART_DEAD;
+  let best = -Infinity;
+  for (const s of sides) {
+    const res = PUSH_FNS[s](grid.map((r) => [...r]), pending[s], cfg);
+    const nv = nextV(s, vSide),
+      nh = nextH(s, hSide);
+    const c = cascade(res.grid, nv, nh);
+    const val = c.score + smartEval(c.grid, { ...pending, [s]: res.pending }, nv, nh, depth - 1);
+    if (val > best) best = val;
+  }
+  return best;
+}
+
+const smartPolicy: Policy = (st, sides) => {
+  let best: Side = sides[0],
+    bestVal = -Infinity,
+    bestScore = -Infinity;
+  for (const s of sides) {
+    const res = PUSH_FNS[s](st.grid.map((r) => [...r]), st.pending[s], cfg);
+    const nv = nextV(s, st.vSide),
+      nh = nextH(s, st.hSide);
+    const c = cascade(res.grid, nv, nh);
+    const val = c.score + smartEval(c.grid, { ...st.pending, [s]: res.pending }, nv, nh, SMART_DEPTH - 1);
+    if (val > bestVal) {
+      bestVal = val;
+      bestScore = c.score;
+      best = s;
+    }
+  }
+  return { side: best, bestScore };
+};
+
 // ── One full game ───────────────────────────────────────────────────────────
 interface GameResult {
   turns: number;
@@ -354,6 +420,7 @@ function runConfig(name: string, policy: Policy, ab: Abilities, games: number): 
   console.log(
     name.padEnd(36) +
       String(median(rs.map((r) => r.turns))).padEnd(10) +
+      (totalTurns / rs.length).toFixed(1).padEnd(10) +
       pct(rs.filter((r) => r.capped).length / rs.length).padEnd(8) +
       pct(rs.reduce((a, r) => a + r.avgOcc, 0) / rs.length).padEnd(8) +
       String(median(rs.map((r) => r.score))).padEnd(10) +
@@ -367,15 +434,12 @@ function runConfig(name: string, policy: Policy, ab: Abilities, games: number): 
 
 const HEADER =
   'config'.padEnd(36) +
-  'medTurns  cap%    avgOcc  medScore  nk/100t  fillGap  swp/game rr/100t  lost/game';
+  'medTurns  avgTurns  cap%    avgOcc  medScore  nk/100t  fillGap  swp/game rr/100t  lost/game';
 
 // ── Sweeps (edit these to test new candidates) ──────────────────────────────
 const DIST_CONFIGS: { name: string; weights: number[] }[] = [
-  { name: 'shipped 9 [19,16,14,12,10,9,8,7,6]', weights: [...DEFAULT_SPAWN_WEIGHTS] },
-  { name: 'previous 8 [19,17,15,13,11,10,8,7]', weights: [19, 17, 15, 13, 11, 10, 8, 7] },
-  { name: 'previous 7 [22,19,16,14,12,10,7]', weights: [22, 19, 16, 14, 12, 10, 7] },
-  { name: 'flat7', weights: [1, 1, 1, 1, 1, 1, 1] },
-  { name: 'flat8', weights: [1, 1, 1, 1, 1, 1, 1, 1] },
+  { name: 'shipped 9 (current)', weights: [...DEFAULT_SPAWN_WEIGHTS] },
+  { name: 'old low-skew [19,16,14,12,10,9,8,7,6]', weights: [19, 16, 14, 12, 10, 9, 8, 7, 6] },
   { name: 'flat9', weights: [1, 1, 1, 1, 1, 1, 1, 1, 1] },
 ];
 
@@ -394,7 +458,8 @@ const games = Number(process.argv[3] ?? 50);
 if (mode === 'dist') {
   for (const policy of [
     { name: 'random', fn: randomPolicy },
-    { name: 'greedy', fn: greedyPolicy },
+    { name: 'greedy (1-ply)', fn: greedyPolicy },
+    { name: 'planner (2-ply)', fn: smartPolicy },
   ]) {
     console.log(`\n=== spawn distributions — ${policy.name} policy, shipped abilities, ${games} games ===`);
     console.log(HEADER);
