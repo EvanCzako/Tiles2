@@ -52,7 +52,13 @@ There are **4 pending rows/columns** (one on each side), each containing `PENDIN
 
 All 5 pending tiles always land on push, even if a row/column is entirely empty (no fly-throughs).
 
-Tile distribution: 9 values, **nearly flat** — weights `[13,12,12,11,11,10,10,9,9]` (~13% down to ~9%). Deliberately harder than the old low-skew table so careless play fills the board faster while planned high-combo cascades are rewarded more (see `DEFAULT_SPAWN_WEIGHTS` in `game/tiles.ts`; tuned via `scripts/simulate.ts`). Adjacent pending tiles are never the same value.
+### Difficulty ramp (`rampedSpawn`/`setDifficulty` in `game/tiles.ts`)
+Spawn odds evolve with **turns survived** (`turnCount`), because survival is governed by *match scarcity* — two same-value tiles must land adjacent to clear. Both the store (before each push, in `triggerPush`) and the simulator (per turn) call `setDifficulty(turn)` so they share one curve. `rampedSpawn(turn)` returns `{ weights, bomb, stone, locked }`:
+- **Value weights:** start at the near-flat 9-value table `[13,12,12,11,11,10,10,9,9]` (turn 0 — the current difficulty, *not* an easier onboarding table; an easier start narrows the skill gap) and flatten toward uniform, with a **10th value** fading in mid-run. Flatter/wider → neighbours share a value less often, and board-wide wipes clear fewer copies.
+- **Stones ramp up** (`STONE_CHANCE` 3% → `STONE_MAX` 22%) — the *unbounded* clutter lever (stones can't be repositioned into a match, so they pile up); this is what caps runaway games. **Bomb stays flat**; **locked** fades in late.
+- All knobs (`RAMP_GRACE/FULL`, `RAMP_EASY/HARD`, `TENTH_*`, `STONE_*`, `LOCKED_*`) live at the top of the ramp block. Sim-tuned so the 2-ply "planner" bot's 800-turn "unloseable" rate is ~0% (was 7.7% on the static table) while typical difficulty and the skilled-vs-random gap are unchanged. `DEFAULT_SPAWN_WEIGHTS` is now only a static reference for the simulator's non-ramped `dist` sweep.
+
+Adjacent pending tiles are never the same value.
 
 ---
 
@@ -180,6 +186,7 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 grid                // ROWS×COLS number array (0 = empty)
 leftPending / rightPending / topPending / bottomPending  // number[PENDING_SIZE]
 score / highScore / combo
+turnCount          // pushes taken this game — drives the difficulty ramp (setDifficulty)
 gameOver / animating
 flyingTiles         // FlyingTile descriptor array
 flyingSource        // 'left'|'right'|'top'|'bottom'|null — which side is currently flying
@@ -220,8 +227,9 @@ A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It i
 src/
   game/           ← pure game logic (no React, no browser APIs)
     config.ts     — GRID_CONFIGS, DEFAULT_CFG, top-level ROWS/COLS constants
-    tiles.ts      — spawn weights (DEFAULT_SPAWN_WEIGHTS/setSpawnWeights, randTileSide*),
-                    specialty-tile flags, getTileColor + palettes, createInitialPending
+    tiles.ts      — spawn weights + difficulty ramp (rampedSpawn/setDifficulty,
+                    DEFAULT_SPAWN_WEIGHTS/setSpawnWeights, randTileSide*), specialty-tile
+                    flags, getTileColor + palettes, createInitialPending
     grid.ts       — createInitialGrid, isPlayAreaEmpty
     corners.ts    — isCornerCell, getCornerBlockSpecs, settleCorners
     push.ts       — pushFromLeft/Right/Top/Bottom, checkGameOver
@@ -243,10 +251,12 @@ src/
   sound.ts        — synthesized WebAudio SFX (see Juice section)
   layout.ts       — getLayout, cellPos, *PendingPos helpers
 scripts/
-  simulate.ts     — headless balance simulator (`npm run sim -- dist|abilities [games]`);
-                    plays full games with the real game logic under random/greedy bots.
-                    Use it to evaluate spawn-distribution or ability-tuning changes
-                    (spawn weights injected via setSpawnWeights in game/tiles.ts).
+  simulate.ts     — headless balance simulator (`npm run sim -- ramp|dist|abilities [games]`);
+                    plays full games with the real game logic under three bots:
+                    random, greedy (1-ply), planner (2-ply lookahead + survival). `ramp`
+                    (default) models the shipped difficulty ramp; `dist` is a static,
+                    non-ramped spawn-distribution sweep (endpoint tuning); `abilities`
+                    sweeps nuke tuning. Use it to tune spawn/ramp/ability changes.
 ```
 
 ## Components

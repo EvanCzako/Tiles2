@@ -25,6 +25,7 @@ import {
   STONE_FLAG,
   isBomb,
   baseValue,
+  rampedSpawn,
 } from './index.js';
 import type { Grid, GridCfg } from '../types.js';
 
@@ -1291,6 +1292,35 @@ describe('nextCombo', () => {
     expect(MAX_COMBO).toBe(8);
     expect(NUKE_CHARGE_MAX).toBeGreaterThan(0);
     expect(CLEAN_SWEEP_BONUS_PER_TILE).toBeGreaterThan(0);
+  });
+});
+
+describe('difficulty ramp (rampedSpawn)', () => {
+  test('turn 0 is the base 9-value table with base specials', () => {
+    const s0 = rampedSpawn(0);
+    expect(s0.weights).toHaveLength(9);
+    expect(s0.stone).toBeCloseTo(0.03, 5);
+    expect(s0.locked).toBe(0);
+    expect(s0.bomb).toBeGreaterThan(0);
+  });
+
+  test('stones ramp up with turns, monotonically, then cap', () => {
+    expect(rampedSpawn(300).stone).toBeGreaterThan(rampedSpawn(0).stone);
+    expect(rampedSpawn(500).stone).toBeGreaterThanOrEqual(rampedSpawn(200).stone);
+    expect(rampedSpawn(100000).stone).toBeLessThanOrEqual(0.25); // capped, never all-stone
+  });
+
+  test('a 10th value fades in only on later turns', () => {
+    expect(rampedSpawn(50).weights).toHaveLength(9); // before it starts
+    const late = rampedSpawn(400);
+    expect(late.weights).toHaveLength(10);
+    expect(late.weights[9]).toBeGreaterThan(0);
+  });
+
+  test('bomb chance stays flat; locks appear only late', () => {
+    expect(rampedSpawn(400).bomb).toBeCloseTo(rampedSpawn(0).bomb, 5);
+    expect(rampedSpawn(100).locked).toBe(0);
+    expect(rampedSpawn(500).locked).toBeGreaterThan(0);
   });
 });
 

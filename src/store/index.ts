@@ -25,6 +25,7 @@ import {
   pushFromTop,
   pushFromBottom,
   checkGameOver,
+  setDifficulty,
   NUKE_DECAY_PER_PUSH,
 } from '../game';
 import { initState } from './init';
@@ -62,10 +63,14 @@ const useGameStore = create<GameStore>((set, get) => ({
   triggerPush(direction: Direction) {
     const s = get();
     if (s.animating || s.gameOver) return;
+    // Advance the difficulty ramp for this push before any new pending is generated.
+    const turn = s.turnCount + 1;
+    setDifficulty(turn);
     // Armed nuke meter drains per push; fully drained = nuke lost, recharge from 0.
     const drainedCharge = s.nukeArmed ? s.nukeCharge - NUKE_DECAY_PER_PUSH : s.nukeCharge;
     set({
       combo: 1,
+      turnCount: turn,
       nukeCharge: Math.max(0, drainedCharge),
       nukeArmed: s.nukeArmed && drainedCharge > 0,
       turnClearedTiles: 0,

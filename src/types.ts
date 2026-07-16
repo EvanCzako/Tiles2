@@ -153,6 +153,7 @@ export interface GameState {
   score: number;
   highScore: number;
   combo: number;
+  turnCount: number;         // pushes taken this game — drives the difficulty ramp
   gameOver: boolean;
   animating: boolean;
   flyingTiles: FlyingTileDescriptor[];

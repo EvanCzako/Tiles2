@@ -51,6 +51,8 @@ import {
   createInitialGrid,
   createInitialPending,
   setSpawnWeights,
+  setDifficulty,
+  resetSpecials,
   DEFAULT_SPAWN_WEIGHTS,
   pushFromLeft,
   pushFromRight,
@@ -119,7 +121,11 @@ interface SimState {
   rerollCd: number;
 }
 
-function newGame(): SimState {
+function newGame(ramp: boolean): SimState {
+  // Ramp mode: reset difficulty to turn 0 before generating the board. Static
+  // mode: leave the caller's setSpawnWeights in place, just base the specials.
+  if (ramp) setDifficulty(0);
+  else resetSpecials();
   return {
     grid: createInitialGrid(cfg),
     pending: {
@@ -297,8 +303,8 @@ interface GameResult {
   lostNukes: number;
 }
 
-function playGame(policy: Policy, ab: Abilities): GameResult {
-  const st = newGame();
+function playGame(policy: Policy, ab: Abilities, ramp: boolean): GameResult {
+  const st = newGame(ramp);
   let occSum = 0,
     turns = 0,
     nukes = 0,
@@ -309,6 +315,8 @@ function playGame(policy: Policy, ab: Abilities): GameResult {
   const fillGaps: number[] = [];
 
   for (; turns < TURN_CAP; turns++) {
+    // Advance the difficulty ramp for this turn (ramp mode only).
+    if (ramp) setDifficulty(turns + 1);
     // Fire the nuke under pressure, or just before the armed meter expires
     if (
       st.armed &&
@@ -413,9 +421,9 @@ function median(xs: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
-function runConfig(name: string, policy: Policy, ab: Abilities, games: number): void {
+function runConfig(name: string, policy: Policy, ab: Abilities, games: number, ramp: boolean): void {
   const rs: GameResult[] = [];
-  for (let i = 0; i < games; i++) rs.push(playGame(policy, ab));
+  for (let i = 0; i < games; i++) rs.push(playGame(policy, ab, ramp));
   const totalTurns = rs.reduce((a, r) => a + r.turns, 0);
   console.log(
     name.padEnd(36) +
@@ -452,28 +460,36 @@ const ABILITY_CONFIGS: { name: string; ab: Abilities }[] = [
   { name: 'shipped + reroll 10', ab: { ...SHIPPED, rerollCooldown: 10 } },
 ];
 
-const mode = process.argv[2] ?? 'abilities';
+const POLICIES = [
+  { name: 'random', fn: randomPolicy },
+  { name: 'greedy (1-ply)', fn: greedyPolicy },
+  { name: 'planner (2-ply)', fn: smartPolicy },
+];
+
+const mode = process.argv[2] ?? 'ramp';
 const games = Number(process.argv[3] ?? 50);
 
-if (mode === 'dist') {
-  for (const policy of [
-    { name: 'random', fn: randomPolicy },
-    { name: 'greedy (1-ply)', fn: greedyPolicy },
-    { name: 'planner (2-ply)', fn: smartPolicy },
-  ]) {
-    console.log(`\n=== spawn distributions — ${policy.name} policy, shipped abilities, ${games} games ===`);
+if (mode === 'ramp') {
+  // The shipped game: difficulty ramp on, all three playstyles.
+  console.log(`\n=== difficulty ramp (shipped) — 3 playstyles, shipped abilities, ${games} games ===`);
+  console.log(HEADER);
+  for (const policy of POLICIES) runConfig(policy.name, policy.fn, SHIPPED, games, true);
+} else if (mode === 'dist') {
+  // Static, non-ramped distribution sweep (for tuning the ramp's endpoints).
+  for (const policy of POLICIES) {
+    console.log(`\n=== static distributions — ${policy.name} policy, no ramp, ${games} games ===`);
     console.log(HEADER);
     for (const d of DIST_CONFIGS) {
       setSpawnWeights(d.weights);
-      runConfig(d.name, policy.fn, SHIPPED, games);
+      runConfig(d.name, policy.fn, SHIPPED, games, false);
     }
     setSpawnWeights([...DEFAULT_SPAWN_WEIGHTS]);
   }
 } else if (mode === 'abilities') {
-  console.log(`\n=== ability tuning — greedy policy, shipped spawn table, ${games} games ===`);
+  console.log(`\n=== ability tuning — greedy policy, difficulty ramp on, ${games} games ===`);
   console.log(HEADER);
-  for (const c of ABILITY_CONFIGS) runConfig(c.name, greedyPolicy, c.ab, games);
+  for (const c of ABILITY_CONFIGS) runConfig(c.name, greedyPolicy, c.ab, games, true);
 } else {
-  console.error(`Unknown mode "${mode}" — use "dist" or "abilities".`);
+  console.error(`Unknown mode "${mode}" — use "ramp", "dist", or "abilities".`);
   process.exit(1);
 }

@@ -31,19 +31,88 @@ export function baseValue(v: number): number {
   return v;
 }
 
-// Spawn weights for tile values 1..N (index i → value i+1; needn't sum to 100).
-// Nearly-flat over 9 values: intentionally harder than the old low-skew table so
-// careless play fills the board faster, while planned multi-wave cascades (now up
-// to combo 8) are rewarded proportionally more. Headless sims show this widens the
-// skilled-vs-random gap in both survival and score. Adding a 10th value overshoots
-// (crushes casual runs and paradoxically narrows the skill gap), so 9 values stays.
+// Static low-skew reference table. The LIVE distribution is driven by the
+// difficulty ramp (setDifficulty) below; this constant is only a static
+// reference for the simulator's non-ramped distribution sweeps.
 export const DEFAULT_SPAWN_WEIGHTS = [13, 12, 12, 11, 11, 10, 10, 9, 9];
 
-// Overridable so the simulator (scripts/simulate.ts) can test alternative
-// distributions against the real game logic. The game itself never calls this.
-let spawnWeights = DEFAULT_SPAWN_WEIGHTS;
+// ── Difficulty ramp ─────────────────────────────────────────────────────────
+// Spawn odds evolve with turns survived. Survival is governed by MATCH SCARCITY
+// — two same-value tiles must land adjacent to clear — so the game hardens by
+// SPREADING the value distribution (flatten easy→uniform, then fade in a 10th
+// value; neighbours share a value less often and board-wide wipes clear fewer
+// copies) and by raising STONE frequency, the *unbounded* clutter lever (stones
+// can't be repositioned into a match, so they pile up until even perfect play
+// chokes — this is what caps runaway games). The helpful bomb stays flat; a
+// "needs two hits" lock fades in late. Both the store (per push) and the
+// simulator (per turn) call setDifficulty(turn), so they share one curve.
+// Start AT the current shipped difficulty (not easier) so the early-game skill
+// gap is preserved, then harden the tail. An easier start would help careless
+// play survive the opening and narrow the very gap we want to widen.
+const RAMP_GRACE = 30;    // turns before hardening begins
+const RAMP_FULL = 300;    // turn the 1–9 value ramp reaches its flat max
+const RAMP_EASY = [13, 12, 12, 11, 11, 10, 10, 9, 9];    // turn 0: the current near-flat table
+const RAMP_HARD = [10, 10, 10, 10, 10, 10, 10, 10, 10];  // uniform over 9
+const TENTH_START = 120;  // value 10 begins appearing (a primary value-spread lever)
+const TENTH_FULL = 400;   // ...reaching parity with the other values
+const TENTH_MAX = 10;
+const STONE_SLOPE = 0.0004; // stone chance added per turn past the grace window
+const STONE_MAX = 0.22;
+const LOCKED_START = 250;  // locks begin appearing
+const LOCKED_SLOPE = 0.0002;
+const LOCKED_MAX = 0.05;
+
+const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
+
+export interface SpawnMix {
+  weights: number[];
+  bomb: number;
+  stone: number;
+  locked: number;
+}
+
+// Spawn odds for a given turn. Pure — shared by the game, the simulator, and tests.
+export function rampedSpawn(turn: number): SpawnMix {
+  const d = clamp01((turn - RAMP_GRACE) / (RAMP_FULL - RAMP_GRACE));
+  const weights = RAMP_EASY.map((e, i) => e + d * (RAMP_HARD[i] - e));
+  const tenth = clamp01((turn - TENTH_START) / (TENTH_FULL - TENTH_START)) * TENTH_MAX;
+  if (tenth > 0) weights.push(tenth);
+  const past = Math.max(0, turn - RAMP_GRACE);
+  return {
+    weights,
+    bomb: BOMB_CHANCE,
+    stone: Math.min(STONE_MAX, STONE_CHANCE + past * STONE_SLOPE),
+    locked: Math.min(LOCKED_MAX, Math.max(0, turn - LOCKED_START) * LOCKED_SLOPE),
+  };
+}
+
+// ── Live spawn state (driven by the ramp; overridable by the simulator) ──────
+let spawnWeights: number[] = rampedSpawn(0).weights;
+let curBomb = BOMB_CHANCE;
+let curStone = STONE_CHANCE;
+let curLocked = LOCKED_CHANCE;
+
+// Apply the ramp for a given turn — the game calls this before each push, the
+// simulator before each turn, so both follow the identical difficulty curve.
+export function setDifficulty(turn: number): void {
+  const m = rampedSpawn(turn);
+  spawnWeights = m.weights;
+  curBomb = m.bomb;
+  curStone = m.stone;
+  curLocked = m.locked;
+}
+
+// Override the value weights only (special chances untouched) — used by the
+// simulator's static, non-ramped distribution sweeps.
 export function setSpawnWeights(weights: number[]): void {
   spawnWeights = weights.slice();
+}
+
+// Reset special-tile chances to their base (turn-0) values.
+export function resetSpecials(): void {
+  curBomb = BOMB_CHANCE;
+  curStone = STONE_CHANCE;
+  curLocked = LOCKED_CHANCE;
 }
 
 export function randTileSide(): number {
@@ -68,9 +137,9 @@ export function randTileSideExcluding(...exclude: number[]): number {
 export function randPendingTile(exclude: number): number {
   const v = randTileSideExcluding(exclude);
   const r = Math.random();
-  if (r < BOMB_CHANCE)                              return v + BOMB_FLAG;
-  if (r < BOMB_CHANCE + LOCKED_CHANCE)              return v + LOCKED_FLAG;
-  if (r < BOMB_CHANCE + LOCKED_CHANCE + STONE_CHANCE) return v + STONE_FLAG;
+  if (r < curBomb)                        return v + BOMB_FLAG;
+  if (r < curBomb + curLocked)            return v + LOCKED_FLAG;
+  if (r < curBomb + curLocked + curStone) return v + STONE_FLAG;
   return v;
 }
 
