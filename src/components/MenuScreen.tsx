@@ -32,6 +32,9 @@ export default function MenuScreen({ navigate }: MenuScreenProps) {
         <button className="menu-btn menu-btn--primary" onClick={() => navigate('game')}>
           Play
         </button>
+        <button className="menu-btn menu-btn--secondary" onClick={() => navigate('boards')}>
+          Boards
+        </button>
         <button className="menu-btn menu-btn--secondary" onClick={() => navigate('howToPlay')}>
           How to Play
         </button>

@@ -9,6 +9,15 @@ export const PENDING_ROW_START = CENTER_ROW - Math.floor(PENDING_SIZE / 2);
 export const PENDING_COL_START = CENTER_COL - Math.floor(PENDING_SIZE / 2);
 
 export const GRID_CONFIGS: Record<string, GridCfg> = {
+  '7x7': {
+    ROWS: 7,
+    COLS: 7,
+    PENDING_SIZE: 3,
+    PENDING_ROW_START: 2,
+    PENDING_COL_START: 2,
+    CENTER_COL: 3,
+    CENTER_ROW: 3,
+  },
   '9x9': {
     ROWS: 9,
     COLS: 9,

@@ -42,10 +42,11 @@ Corner cells are identified by `isCornerCell(r, c, cfg)` (exported from `src/gam
 ## Grid Configs (`GRID_CONFIGS` in `src/game/config.ts`)
 | Mode | ROWS | COLS | PENDING_SIZE | PENDING_ROW_START | PENDING_COL_START | CENTER_ROW | CENTER_COL |
 |------|------|------|------|------|------|------|------|
+| `'7x7'` | 7 | 7 | 3 | 2 | 2 | 3 | 3 |
 | `'9x9'` | 9 | 9 | 5 | 2 | 2 | 4 | 4 |
 | `'11x11'` | 11 | 11 | 7 | 2 | 2 | 5 | 5 |
 
-Only `'9x9'` is currently selectable (`GridMode` type in `types.ts`); the `'11x11'` config is kept as a dormant alternate mode.
+All three are selectable via the **Boards** menu path (`GridMode = '7x7' | '9x9' | '11x11'`); `'9x9'` is the default. Corner blocks are always 2×2 (`PENDING_ROW_START = 2`); only the central cross width (`PENDING_SIZE`, i.e. the pending-strip length) and overall size differ. Tile distributions are shared across sizes for now (to be tuned per-size later). All layout/rendering is `cfg`-driven, so `useScale` fits each size to the viewport.
 
 ## Pending Tiles
 There are **4 pending rows/columns** (one on each side), each containing `PENDING_SIZE` tiles aligned with rows/cols `PENDING_ROW_START` through `PENDING_ROW_START + PENDING_SIZE - 1`. On a swipe the pending strip for that side is pushed into the active area. Refreshed pending values are committed immediately (the strip always shows a full set of tiles — no zeroing during cascade).
@@ -217,7 +218,7 @@ High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'
 ---
 
 ## Screen Navigation (`src/App.tsx`)
-Simple `useState('menu')` router. Screens: `'menu'` → `'game'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
+Simple `useState('menu')` router. Screens: `'menu'` → `'game'` | `'boards'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The **Boards** screen (`BoardsScreen.tsx`) lists 7×7 / 9×9 / 11×11 (with per-board best scores via `loadHighScores()`); picking one calls `setGridMode(mode)` then `navigate('game')`. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
 
 ## Combo Strip
 A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift) and holds three zones: the NUKE charge button (left), the combo badge slot (center), and an invisible spacer (`.combo-strip-spacer`, right) that counterweights the NUKE button so the badge stays centered. When `combo >= 2` the center renders an animated `×N` badge (CSS class `combo-strip-badge`) using `COMBO_COLORS` (8-step ramp, grey→yellow→orange→red-orange→red→magenta→purple→white-hot, one per combo level). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
@@ -268,9 +269,10 @@ scripts/
 | `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + combo strip (nuke/combo/spacer) + arena; applies shake class and announcement overlay |
 | `GameHeader.tsx` | Score / highScore display; title is clickable (navigates to menu via `onMenu` prop) |
 | `GameOverOverlay.tsx` | Overlay with Play Again + Main Menu |
-| `MenuScreen.tsx` | Title "UNTILED" + decorative mini-tile row + Play / How to Play / Settings buttons + best-score badge |
+| `MenuScreen.tsx` | Title "UNTILED" + decorative mini-tile row + Play / Boards / How to Play / Settings buttons + best-score badge |
+| `BoardsScreen.tsx` | Board-size picker (7×7 / 9×9 / 11×11) with per-board best scores; selecting one sets `gridMode` and starts a game |
 | `HowToPlayScreen.tsx` | Rule cards (icon + text + mini `Tile` examples) covering push, annihilation, combos, nuke, clean sweep, bombs/stones, corners, game over |
-| `SettingsScreen.tsx` | Card-based: sound toggle switch, color palette, high score + reset. Grid-size selector hidden while `GridMode` allows a single mode |
+| `SettingsScreen.tsx` | Card-based: sound toggle switch, color palette, high score + reset. (Board size lives in the Boards screen; the Settings grid-size selector stays hidden) |
 
 ## Hooks
 - `useInput(triggerPush, fireNuke?)` — keyboard (ArrowKeys push, Space fires nuke) + touch (touchstart/touchend, 30px threshold)
