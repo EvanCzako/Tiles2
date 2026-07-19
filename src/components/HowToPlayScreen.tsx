@@ -32,12 +32,12 @@ const sections: Section[] = [
   {
     icon: '⚡',
     title: 'Cascade Combos',
-    body: 'After a clear, tiles collapse toward the center. If the collapse creates new matches, the cascade continues and your multiplier climbs — up to ×5 per wave.',
+    body: 'After a clear, tiles collapse toward the center. If the collapse creates new matches, the cascade continues and your multiplier climbs — up to ×8 per wave.',
   },
   {
     icon: '☢',
     title: 'Nuke',
-    body: "Every match adds to the nuke meter — bigger combos charge it faster. When the button reads NUKE, tap it (or press Space) to blast a plus-shaped hole in the center of the board at ×5 points. But don't sit on it: an armed nuke leaks charge every swipe, and if the meter drains empty the nuke is gone.",
+    body: "Every match adds to the nuke meter — bigger combos charge it faster. When the button reads NUKE, tap it (or press Space) to blast a plus-shaped hole in the center of the board at ×8 points. But don't sit on it: an armed nuke leaks charge every swipe, and if the meter drains empty the nuke is gone.",
   },
   {
     icon: '✨',
