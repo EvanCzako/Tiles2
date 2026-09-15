@@ -17,10 +17,6 @@ function scaleFor(vp: Viewport, containerW: number, containerH: number): number 
   return Math.max(0.28, Math.min(1, (vp.vw - 32) / containerW, (vp.vh - HEADER_H) / containerH));
 }
 
-export function computeScale(containerW: number, containerH: number): number {
-  return scaleFor(readViewport(), containerW, containerH);
-}
-
 export function useScale(containerW: number, containerH: number): number {
   const hasDom = typeof document !== 'undefined';
 

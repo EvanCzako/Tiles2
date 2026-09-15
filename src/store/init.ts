@@ -1,12 +1,8 @@
-import type { Grid, GridCfg, GridMode, Direction, GameState } from '../types';
+import type { GridMode, GameState } from '../types';
 import {
   GRID_CONFIGS,
   createInitialGrid,
   createInitialPending,
-  pushFromLeft,
-  pushFromRight,
-  pushFromTop,
-  pushFromBottom,
   setDifficulty,
 } from '../game';
 import { getLayout } from '../layout';
@@ -57,22 +53,4 @@ export function initState(mode: GridMode = loadGridMode()): GameState {
     announcement: null,
     soundOn: loadSoundOn(),
   };
-}
-
-export function getAvailableDirections(s: { grid: Grid; cfg: GridCfg }): Direction[] {
-  const { grid, cfg } = s;
-  const dummy = Array(cfg.PENDING_SIZE).fill(1) as number[];
-  const anyLanding = (r: { landings: unknown[] }) => r.landings.length > 0;
-  const dirs: Direction[] = [];
-  if (anyLanding(pushFromLeft(grid, dummy, cfg))) dirs.push('right');
-  if (anyLanding(pushFromRight(grid, dummy, cfg))) dirs.push('left');
-  if (anyLanding(pushFromTop(grid, dummy, cfg))) dirs.push('down');
-  if (anyLanding(pushFromBottom(grid, dummy, cfg))) dirs.push('up');
-  return dirs;
-}
-
-// Kept for callers that gate UI on whether the player has an ability available
-// (e.g. suppressing hints). Auto-move was removed, so nothing schedules on it.
-export function canUseAbility(s: { nukeArmed: boolean }): boolean {
-  return s.nukeArmed;
 }

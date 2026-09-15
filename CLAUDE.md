@@ -273,7 +273,7 @@ src/
     gameLogic.test.ts — pure logic tests (see Testing)
   store/          ← Zustand store, split by concern
     persistence.ts — localStorage high score helpers
-    init.ts       — initState, getAvailableDirections, canUseAbility (auto-move removed)
+    init.ts       — initState (fresh game state + a new runId)
     animations.ts — endTurn, runCollapseLoop, nukeCenterAndSettle
     index.ts      — useGameStore (triggerPush + store creation)
   components/     ← React components
