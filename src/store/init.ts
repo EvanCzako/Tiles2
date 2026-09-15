@@ -12,12 +12,17 @@ import {
 import { getLayout } from '../layout';
 import { loadHighScore, loadColorPalette, loadSoundOn, loadGridMode } from './persistence';
 
+// Every call starts a new run. Animation chains started under an older id are
+// inert from this point on (see the run guard in store/animations.ts).
+let runSeq = 0;
+
 export function initState(mode: GridMode = loadGridMode()): GameState {
   const cfg = GRID_CONFIGS[mode];
   const layout = getLayout(cfg);
   // Reset the difficulty ramp to turn 0 before generating the starting board/pending.
   setDifficulty(0, mode);
   return {
+    runId: ++runSeq,
     gridMode: mode,
     cfg,
     layout,
@@ -57,8 +62,7 @@ export function initState(mode: GridMode = loadGridMode()): GameState {
 export function getAvailableDirections(s: { grid: Grid; cfg: GridCfg }): Direction[] {
   const { grid, cfg } = s;
   const dummy = Array(cfg.PENDING_SIZE).fill(1) as number[];
-  const anyLanding = (r: { landings: { flyThrough?: boolean }[] }) =>
-    r.landings.some((l) => !l.flyThrough);
+  const anyLanding = (r: { landings: unknown[] }) => r.landings.length > 0;
   const dirs: Direction[] = [];
   if (anyLanding(pushFromLeft(grid, dummy, cfg))) dirs.push('right');
   if (anyLanding(pushFromRight(grid, dummy, cfg))) dirs.push('left');

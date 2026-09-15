@@ -5,6 +5,9 @@ A **swipe-based tile game** built as a TypeScript/React web app (deployed via gh
 
 - **Run dev server:** `npm run dev`
 - **Run tests:** `npm test`
+- **Typecheck:** `npm run typecheck` (`vite build` does *not* typecheck)
+- **Lint:** `npm run lint`
+- **All three:** `npm run check` — same gate CI runs before deploying
 - **Deploy:** `npm run deploy` (builds then pushes to gh-pages)
 
 ## Stack
@@ -51,15 +54,29 @@ All three are selectable via the **Boards** menu path (`GridMode = '7x7' | '9x9'
 ## Pending Tiles
 There are **4 pending rows/columns** (one on each side), each containing `PENDING_SIZE` tiles aligned with rows/cols `PENDING_ROW_START` through `PENDING_ROW_START + PENDING_SIZE - 1`. On a swipe the pending strip for that side is pushed into the active area. Refreshed pending values are committed immediately (the strip always shows a full set of tiles — no zeroing during cascade).
 
-All 5 pending tiles always land on push, even if a row/column is entirely empty (no fly-throughs).
+All 5 pending tiles always land on push, even if a row/column is entirely empty (no fly-throughs),
+so every `Landing` carries a concrete `row`/`col`; a tile that cannot be placed is reported in
+`PushResult.blockedIndices` instead.
 
 ### Difficulty ramp (`rampedSpawn`/`setDifficulty` in `game/tiles.ts`)
-Spawn odds evolve with **turns survived** (`turnCount`), because survival is governed by *match scarcity* — two same-value tiles must land adjacent to clear. The ramp is also **per-board**: both the store (before each push, in `triggerPush`) and the simulator (per turn) call `setDifficulty(turn, gridMode)`, so each board follows its own tuned curve. `rampedSpawn(turn, board)` returns `{ weights, bomb, stone, locked }`:
-- **Value weights (the primary per-board lever):** each board starts at a near-flat `easy` table of `BOARD_VALUE_COUNTS[board]` values and flattens toward a uniform `hard` table, with one extra value fading in mid-run (`TENTH_*`) up to the `MAX_VALUES = 10` color ceiling. **9×9 = 9 values** (byte-identical to the shipped `[13,12,12,11,11,10,10,9,9]` → 10th fades in). Match scarcity depends on *both* value count and board area, so a smaller board (fills faster, less room) needs **fewer** values to survive as long: **7×7 = 7**, **11×11 = 10** (pinned at the ceiling). Fewer values → neighbours share a value more often → more matches. `makeBoardRamp(n)` builds each table (9 special-cased to the exact literal).
-- **Stones ramp up** (`STONE_CHANCE` 3% → `STONE_MAX` 22%) — the *unbounded* clutter lever (stones can't be repositioned into a match, so they pile up); this is what caps runaway games. `BOARD_STONE_SCALE[board]` multiplies the slope: **11×11 = 3.0** (the roomy board is pinned at the 10-value ceiling yet still outlives 9×9 for skilled play, so its stones reach the shared `STONE_MAX` by ~turn 190 — the shared cap means no board exceeds 9×9's peak stone density). 7×7/9×9 = 1.0. **Bomb stays flat**; **locked** fades in late.
-- **Balance:** sim-tuned (`npm run sim -- boards`) so the 2-ply "planner" bot's median survival matches across sizes (~206/206/212 turns for 7×7/9×9/11×11) and random-mashing is tight (~66/68/70); mid-skill (greedy) is a bit more forgiving on the non-default boards, an unavoidable artifact of the coarse integer value-count lever (each step ≈2× survival). Knobs (`RAMP_GRACE/FULL`, `TENTH_*`, `MAX_VALUES`, `STONE_*`, `LOCKED_*`, `BOARD_VALUE_COUNTS`, `BOARD_STONE_SCALE`) live at the top of the ramp block. `DEFAULT_SPAWN_WEIGHTS` is now only a static reference for the simulator's non-ramped `dist` sweep.
+Spawn odds evolve with **turns survived** (`turnCount`), because survival is governed by
+*match scarcity* — two same-value tiles must land adjacent to clear. The ramp is
+**per-board**: the store (before each push, in `triggerPush`) and the simulator (per turn)
+both call `setDifficulty(turn, gridMode)`, so each size follows its own tuned curve.
+`rampedSpawn(turn, board)` returns `{ weights, bomb, stone, locked }`. Two levers do the
+work: the per-board **value count** (fewer values → more matches → longer survival) and the
+**stone ramp** (3% → 22%, the unbounded clutter lever that caps runaway games). Bomb is
+flat; locked fades in late. Knobs sit at the top of the ramp block in `game/tiles.ts`;
+retune with `npm run sim -- boards`.
 
-Adjacent pending tiles are never the same value.
+**→ Rationale, per-board numbers, and how to add a board size: [`docs/balance.md`](docs/balance.md)** —
+read it before changing any spawn/ramp constant; the values are sim-tuned and the reasoning
+is not recoverable from the code.
+
+Adjacent pending tiles are never the same value. Value exclusion (`randTileSideExcluding`)
+is best-effort rejection sampling capped at 20 draws — if the exclusions cover nearly the
+whole spawn table it returns the first allowed value (and, failing that, any value) rather
+than looping forever.
 
 ---
 
@@ -68,7 +85,7 @@ The four 2×2 corner blocks start populated with random tiles. After each turn's
 
 - **Phase 1 (vertical):** Each column in a corner block — if the inner row is empty and the outer row is not — slides the outer tile to the inner row.
 - **Phase 2 (horizontal):** Each row in a corner block — if the inner col is empty and the outer col is not — slides the outer tile to the inner col.
-- After both phases, any remaining empty slots are refilled with random tiles (no adjacent duplicates).
+- After both phases, any remaining empty slots are refilled via `randTileSideExcluding` (no adjacent duplicates within the corner block).
 
 Corner phases are animated sequentially (same `ANIM_MS + 30` timing as main collapse). After corner settlement, if new tile placements created matches, `runCollapseLoop` re-enters the cascade.
 
@@ -184,6 +201,7 @@ All animation is coordinate-based — tiles animate between pixel positions comp
 
 ## Zustand Store State (`src/store/`)
 ```ts
+runId               // identifies the current game run; bumped by every initState()
 grid                // ROWS×COLS number array (0 = empty)
 leftPending / rightPending / topPending / bottomPending  // number[PENDING_SIZE]
 score / highScore / combo
@@ -208,6 +226,16 @@ announcement        // { text, id, color? } | null — "ALL Ns!" / "NUKE!" banne
 soundOn             // sound toggle (persisted)
 ```
 
+**Run guard (`runGuard` in `store/animations.ts`):** cascades are chains of
+`setTimeout`/`requestAnimationFrame` callbacks that can outlive the game that started
+them — the header title navigates to the menu mid-animation, and `reset`/`setGridMode`
+then install a fresh state while those timers are still pending. Each chain captures
+`runId` at entry and drops every `set` once it changes, so an abandoned cascade can't
+commit its grid (or, across a board switch, its **dimensions**) into the new game —
+which used to leave e.g. a 9×9 grid in an 11×11 config and throw on the next push.
+`triggerPush`'s deferred commit carries the same check. Any new async chain in the
+store must go through `runGuard`. Regression-tested in `src/store/store.test.ts`.
+
 **Key store helpers (in `store/animations.ts`):**
 - `endTurn(grid, pendingPayload, get, set)` — runs `settleCorners`, animates both corner phases, then calls `finalize` or re-enters cascade if corner refill created matches.
 - `runCollapseLoop(..., combo, chargeNuke)` — recursive cascade; accrues nuke charge, plays sounds, spawns popups/shake/announcements per wave. `chargeNuke=false` for nuke-initiated cascades.
@@ -218,7 +246,10 @@ High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'
 ---
 
 ## Screen Navigation (`src/App.tsx`)
-Simple `useState('menu')` router. Screens: `'menu'` → `'game'` | `'boards'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The **Boards** screen (`BoardsScreen.tsx`) lists 7×7 / 9×9 / 11×11 (with per-board best scores via `loadHighScores()`); picking one calls `setGridMode(mode)` then `navigate('game')`. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
+Simple `useState('menu')` router, with the active screen wrapped in `ErrorBoundary` —
+a render-time throw shows a recoverable crash screen ("Back to Menu" resets the store and
+returns to the menu) instead of a blank page. Note it cannot catch throws from
+`setTimeout`/`rAF` callbacks, which is where the cascade runs. Screens: `'menu'` → `'game'` | `'boards'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The **Boards** screen (`BoardsScreen.tsx`) lists 7×7 / 9×9 / 11×11 (with per-board best scores via `loadHighScores()`); picking one calls `setGridMode(mode)` then `navigate('game')`. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
 
 ## Combo Strip
 A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift) and holds three zones: the NUKE charge button (left), the combo badge slot (center), and an invisible spacer (`.combo-strip-spacer`, right) that counterweights the NUKE button so the badge stays centered. When `combo >= 2` the center renders an animated `×N` badge (CSS class `combo-strip-badge`) using `COMBO_COLORS` (8-step ramp, grey→yellow→orange→red-orange→red→magenta→purple→white-hot, one per combo level). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
@@ -251,6 +282,8 @@ src/
   constants.ts    — CELL, GAP, animation/juice timings, COMBO_COLORS
   sound.ts        — synthesized WebAudio SFX (see Juice section)
   layout.ts       — getLayout, cellPos, *PendingPos helpers
+docs/
+  balance.md    — difficulty/spawn tuning rationale + per-board numbers (see Difficulty ramp)
 scripts/
   simulate.ts     — headless balance simulator (`npm run sim -- boards|ramp|vcount|dist|abilities [games]`);
                     plays full games with the real game logic under three bots:
@@ -268,6 +301,7 @@ scripts/
 | `Arena.tsx` | Grid (+ 4 corner obstacle-zone frames) + 4 pending strips + flying tiles + score popups; reads `annihilateSet`, `boardWipeFlashSet`, `nukeFlashSet` to drive flash props on Tile |
 | `Tile.tsx` | Single tile div; props: `value`, `size`, `flashAnnihilate`, `flashBoardWipe`, `flashBomb`, `flashNuke`, `centerColumn` |
 | `FlyingTile.tsx` | Animated flying tile (CSS transition via double-rAF) |
+| `ErrorBoundary.tsx` | Class boundary around the active screen; renders the crash screen (`.crash-box`) with a reset back to the menu |
 | `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + combo strip (nuke/combo/spacer) + arena; applies shake class and announcement overlay |
 | `GameHeader.tsx` | Score / highScore display; title is clickable (navigates to menu via `onMenu` prop) |
 | `GameOverOverlay.tsx` | Overlay with Play Again + Main Menu |
@@ -289,7 +323,11 @@ scripts/
 ---
 
 ## Testing
-`src/game/gameLogic.test.ts` — pure logic tests (no React). Run with `npm test`.  
+`src/game/gameLogic.test.ts` — pure logic tests (no React). `src/store/store.test.ts` —
+store-level tests that drive the real animation chains (shims `requestAnimationFrame`
+onto `setTimeout` and waits in real time; a few seconds per case), covering the run
+guard: switching boards or resetting mid-cascade must leave a consistent, playable
+board. Run both with `npm test`.  
 Covers: constants, grid init, push from all 4 sides, gravity/horizontal collapse, annihilation (including board-wide wipe: 3+ connected group triggers full-value sweep; 2-tile groups remain local), game-over detection, nuke plus score, combo math, and regression tests for collapse animation integrity (same-value tiles in the same pass must never be chained; an obstacle-blocked tile turns the corner across straight single-axis stages, never a diagonal).
 
 ---

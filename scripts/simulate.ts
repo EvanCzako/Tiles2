@@ -74,12 +74,12 @@ import {
   NUKE_CHARGE_MAX,
   NUKE_DECAY_PER_PUSH,
 } from '../src/game';
-import type { Grid, GridCfg, VerticalSide, HorizontalSide, PushResult } from '../src/types';
+import type { Grid, GridCfg, GridMode, VerticalSide, HorizontalSide, PushResult } from '../src/types';
 
 // Active board config — mutable so the `boards` mode can sweep 7x7/9x9/11x11.
 // `boardMode` is the matching mode key threaded into the board-aware ramp.
 let cfg: GridCfg = GRID_CONFIGS['9x9'];
-let boardMode = '9x9';
+let boardMode: GridMode = '9x9';
 const TURN_CAP = 800;
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
@@ -206,7 +206,7 @@ function occupancy(grid: Grid): number {
 
 function availableSides(grid: Grid): Side[] {
   const dummy = Array(cfg.PENDING_SIZE).fill(1) as number[];
-  return SIDES.filter((s) => PUSH_FNS[s](grid, dummy, cfg).landings.some((l) => !l.flyThrough));
+  return SIDES.filter((s) => PUSH_FNS[s](grid, dummy, cfg).landings.length > 0);
 }
 
 // ── Player policies ─────────────────────────────────────────────────────────
@@ -387,7 +387,7 @@ function playGame(policy: Policy, ab: Abilities, ramp: boolean): GameResult {
     gainCharge(st, ab, c.chargeGain);
 
     // Clean sweep: half (or full) meter refill; score bonus not modeled
-    let grid = c.grid;
+    const grid = c.grid;
     if (c.cleared > 0 && isPlayAreaEmpty(grid, cfg)) {
       sweeps++;
       if (ab.sweepRefill > 0) gainCharge(st, ab, ab.nukeMax * ab.sweepRefill);
@@ -490,7 +490,12 @@ if (mode === 'boards') {
 } else if (mode === 'vcount') {
   // Value-count sweep: for one board, try several turn-0 value counts to find
   // the one whose survival/score tracks 9x9. Usage: npm run sim -- vcount 7x7 [games]
-  const board = (process.argv[3] ?? '7x7') as keyof typeof GRID_CONFIGS;
+  const boardArg = process.argv[3] ?? '7x7';
+  if (!(boardArg in GRID_CONFIGS)) {
+    console.error(`Unknown board "${boardArg}". Expected one of: ${Object.keys(GRID_CONFIGS).join(', ')}`);
+    process.exit(1);
+  }
+  const board = boardArg as GridMode;
   const nGames = Number(process.argv[4] ?? 50);
   const counts = board === '7x7' ? [5, 6, 7, 8, 9] : board === '11x11' ? [9, 10, 11] : [7, 8, 9, 10, 11];
   cfg = GRID_CONFIGS[board];

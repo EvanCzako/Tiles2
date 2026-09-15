@@ -138,7 +138,7 @@ function sideHasLanding(
   pushFn: (grid: Grid, pending: number[], cfg: GridCfg) => PushResult
 ): boolean {
   const dummy = Array(cfg.PENDING_SIZE).fill(1) as number[];
-  return pushFn(grid, dummy, cfg).landings.some((l) => !l.flyThrough);
+  return pushFn(grid, dummy, cfg).landings.length > 0;
 }
 
 export function checkGameOver(grid: Grid, cfg: GridCfg): boolean {

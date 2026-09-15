@@ -9,10 +9,9 @@ interface FlyingTileProps {
   fromY: number;
   toX: number;
   toY: number;
-  flyThrough?: boolean;
 }
 
-export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough = false }: FlyingTileProps) {
+export default function FlyingTile({ value, fromX, fromY, toX, toY }: FlyingTileProps) {
   const [active, setActive] = useState(false);
 
   useEffect(() => {
@@ -46,10 +45,7 @@ export default function FlyingTile({ value, fromX, fromY, toX, toY, flyThrough =
         justifyContent: 'center',
         borderRadius: 6,
         transform: active ? 'translate(0,0)' : `translate(${dx}px,${dy}px)`,
-        opacity: active && flyThrough ? 0 : 1,
-        transition: active
-          ? `transform ${ANIM_MS}ms ease-in${flyThrough ? `, opacity ${ANIM_MS * 0.5}ms ease-in ${ANIM_MS * 0.5}ms` : ', opacity 0s'}`
-          : 'none',
+        transition: active ? `transform ${ANIM_MS}ms ease-in` : 'none',
         pointerEvents: 'none',
         zIndex: 20,
         outline: stone ? '2px solid rgba(255,255,255,0.3)' : undefined,

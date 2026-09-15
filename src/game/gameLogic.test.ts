@@ -1,11 +1,5 @@
 import {
-  ROWS,
-  COLS,
-  PENDING_SIZE,
-  PENDING_ROW_START,
-  PENDING_COL_START,
-  CENTER_COL,
-  CENTER_ROW,
+  DEFAULT_CFG,
   createInitialGrid,
   createInitialPending,
   pushFromLeft,
@@ -28,6 +22,10 @@ import {
   rampedSpawn,
 } from './index.js';
 import type { Grid, GridCfg } from '../types.js';
+
+// These tests are written against the default (9x9) board.
+const { ROWS, COLS, PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_COL, CENTER_ROW } =
+  DEFAULT_CFG;
 
 // Helper: build a sparse 9×9 grid from a list of [row, col, value] triples.
 function makeGrid(entries: [number, number, number][]): Grid {
@@ -163,7 +161,7 @@ describe('Push From Left', () => {
       .map(() => Array(COLS).fill(0));
 
     const result = pushFromLeft(grid, [1, 0, 0, 0]);
-    expect(result.landings[0].flyThrough).toBeFalsy();
+    expect(result.landings.length).toBeGreaterThan(0);
     expect(result.landings[0].col).toBe(CENTER_COL);
     expect(result.grid[PENDING_ROW_START][CENTER_COL]).toBe(1);
   });
@@ -191,7 +189,7 @@ describe('Push From Top', () => {
 
     const result = pushFromTop(grid, [1, 0, 0, 0, 0]);
     const col = PENDING_COL_START; // column 2
-    expect(result.landings[0]?.flyThrough).toBeFalsy();
+    expect(result.landings.length).toBeGreaterThan(0);
     expect(result.landings[0]?.row).toBe(CENTER_ROW);
     expect(result.grid[CENTER_ROW][col]).toBe(1);
   });
@@ -929,7 +927,7 @@ describe('Move Animation Integrity — push then collapse', () => {
     const baseGrid = makeGrid([[CENTER_ROW, PENDING_COL_START, 2]]);
     const pending = [1, 0, 0, 0, 0];
     const pushed = pushFromTop(baseGrid, pending);
-    expect(pushed.landings[0]?.flyThrough).toBeFalsy();
+    expect(pushed.landings.length).toBeGreaterThan(0);
     const { grid: g } = collapseGrid(pushed.grid, undefined, 'top', 'left');
     expect(tileCount(g)).toBeGreaterThan(0);
   });
@@ -938,7 +936,7 @@ describe('Move Animation Integrity — push then collapse', () => {
     const baseGrid = makeGrid([[CENTER_ROW, PENDING_COL_START + 2, 3]]);
     const pending = [0, 0, 1, 0, 0];
     const pushed = pushFromBottom(baseGrid, pending);
-    expect(pushed.landings.some((l) => !l.flyThrough)).toBe(true);
+    expect(pushed.landings.length).toBeGreaterThan(0);
     const { grid: g } = collapseGrid(pushed.grid, undefined, 'bottom', 'left');
     expect(tileCount(g)).toBeGreaterThan(0);
   });

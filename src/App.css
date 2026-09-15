@@ -1007,3 +1007,59 @@ body {
   color: var(--gold);
   white-space: nowrap;
 }
+
+/* ── Crash screen (ErrorBoundary fallback) ───────────────────────────────── */
+
+.crash-screen {
+  justify-content: center;
+}
+
+.crash-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 30px 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(340px, 84vw);
+  box-sizing: border-box;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55);
+}
+
+.crash-title {
+  margin: 0;
+  font-size: clamp(1.2rem, 4vw, 1.5rem);
+  color: var(--text-bright);
+  letter-spacing: 0.08em;
+}
+
+.crash-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.crash-detail {
+  margin: 0;
+  width: 100%;
+  max-height: 96px;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--card-raised);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.crash-box .menu-btn {
+  width: 100%;
+}

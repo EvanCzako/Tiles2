@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
 import { useScale } from '../hooks/useScale';
 import { useInput } from '../hooks/useInput';
@@ -13,6 +14,9 @@ interface GameScreenProps {
 }
 
 export default function GameScreen({ navigate }: GameScreenProps) {
+  // Shallow-selected so the per-wave grid/flyingTiles/flash-set churn of a
+  // cascade doesn't re-render the header and combo strip (and, through them,
+  // the board) on every commit.
   const {
     score,
     highScore,
@@ -28,7 +32,24 @@ export default function GameScreen({ navigate }: GameScreenProps) {
     reset,
     shake,
     announcement,
-  } = useGameStore();
+  } = useGameStore(
+    useShallow((s) => ({
+      score: s.score,
+      highScore: s.highScore,
+      turnCount: s.turnCount,
+      combo: s.combo,
+      triggerPush: s.triggerPush,
+      layout: s.layout,
+      animating: s.animating,
+      gameOver: s.gameOver,
+      nukeCharge: s.nukeCharge,
+      nukeArmed: s.nukeArmed,
+      fireNuke: s.fireNuke,
+      reset: s.reset,
+      shake: s.shake,
+      announcement: s.announcement,
+    }))
+  );
   const { CONTAINER_W, CONTAINER_H } = layout;
 
   const scale = useScale(CONTAINER_W, CONTAINER_H);

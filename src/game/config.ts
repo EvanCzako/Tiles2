@@ -1,14 +1,14 @@
-import type { GridCfg } from '../types';
+import type { GridCfg, GridMode } from '../types';
 
-export const ROWS = 9;
-export const COLS = 9;
-export const PENDING_SIZE = 5;
-export const CENTER_COL = Math.floor(COLS / 2);
-export const CENTER_ROW = Math.floor(ROWS / 2);
-export const PENDING_ROW_START = CENTER_ROW - Math.floor(PENDING_SIZE / 2);
-export const PENDING_COL_START = CENTER_COL - Math.floor(PENDING_SIZE / 2);
-
-export const GRID_CONFIGS: Record<string, GridCfg> = {
+// Keyed by GridMode, not string: a new board or a typo'd key is then a compile
+// error instead of a silent `undefined` (or, worse, a silent fall back to 9x9
+// difficulty — see BOARD_VALUE_COUNTS / BOARD_STONE_SCALE in tiles.ts).
+//
+// There are deliberately no top-level ROWS/COLS/CENTER_* constants here. They
+// used to exist, hardcoded to 9x9, and nothing but the tests imported them —
+// any `import { ROWS } from '../game'` would silently have been wrong on 7x7
+// and 11x11. Everything takes its dimensions from a GridCfg.
+export const GRID_CONFIGS: Record<GridMode, GridCfg> = {
   '7x7': {
     ROWS: 7,
     COLS: 7,

@@ -1,9 +1,17 @@
+import { memo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
+import { isCornerCell } from '../game';
 import { CELL, GAP, COMBO_COLORS } from '../constants';
 import Tile from './Tile';
 import FlyingTile from './FlyingTile';
 
-export default function Arena() {
+// Subscribed with a shallow-compared selector rather than the bare store: a
+// cascade fires dozens of set() calls per turn (score, combo, nuke charge,
+// shake, announcements) and an unselected useGameStore() re-renders the entire
+// board on every one of them. memo() keeps a GameScreen re-render from doing
+// the same from above, since Arena takes no props.
+function Arena() {
   const {
     grid,
     leftPending,
@@ -21,7 +29,26 @@ export default function Arena() {
     cfg,
     layout,
     scorePopups,
-  } = useGameStore();
+  } = useGameStore(
+    useShallow((s) => ({
+      grid: s.grid,
+      leftPending: s.leftPending,
+      rightPending: s.rightPending,
+      topPending: s.topPending,
+      bottomPending: s.bottomPending,
+      flyingTiles: s.flyingTiles,
+      flyingSource: s.flyingSource,
+      annihilateSet: s.annihilateSet,
+      boardWipeFlashSet: s.boardWipeFlashSet,
+      bombFlashSet: s.bombFlashSet,
+      nukeFlashSet: s.nukeFlashSet,
+      collapsingCells: s.collapsingCells,
+      pendingCommit: s.pendingCommit,
+      cfg: s.cfg,
+      layout: s.layout,
+      scorePopups: s.scorePopups,
+    }))
+  );
 
   const blockedKey = pendingCommit?.pendingKey ?? null;
   const blockedSet = pendingCommit ? new Set(pendingCommit.blockedIndices) : new Set<number>();
@@ -55,7 +82,6 @@ export default function Arena() {
           fromY={ft.from.y}
           toX={ft.to.x}
           toY={ft.to.y}
-          flyThrough={ft.flyThrough}
         />
       ))}
 
@@ -117,9 +143,7 @@ export default function Arena() {
         {grid.map((row, r) =>
           row.map((val, c) => {
             const key = `${r},${c}`;
-            const isCorner =
-              (r < PENDING_ROW_START || r >= PENDING_ROW_START + cfg.PENDING_SIZE) &&
-              (c < PENDING_COL_START || c >= PENDING_COL_START + cfg.PENDING_SIZE);
+            const isCorner = isCornerCell(r, c, cfg);
             return (
               <div
                 key={`${r}-${c}`}
@@ -166,3 +190,5 @@ export default function Arena() {
     </>
   );
 }
+
+export default memo(Arena);

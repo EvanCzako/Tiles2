@@ -11,7 +11,7 @@ import type {
   FlyingSource,
   GameStore,
 } from '../types';
-import { CELL, GAP, ANIM_MS } from '../constants';
+import { ANIM_MS } from '../constants';
 import {
   cellPos,
   leftPendingPos,
@@ -63,6 +63,9 @@ const useGameStore = create<GameStore>((set, get) => ({
   triggerPush(direction: Direction) {
     const s = get();
     if (s.animating || s.gameOver) return;
+    // Captured so the deferred commit below can't land in a different game (the
+    // player can reset or switch boards during the push animation).
+    const runId = s.runId;
     // Advance the difficulty ramp for this push before any new pending is generated.
     const turn = s.turnCount + 1;
     setDifficulty(turn, s.gridMode);
@@ -107,31 +110,12 @@ const useGameStore = create<GameStore>((set, get) => ({
     const payload = { grid: result.grid, [pendingKey]: result.pending };
     const pc = { payload, blockedIndices: result.blockedIndices, pendingKey };
 
-    const rowIsVisible = (idx: number): boolean => {
-      if (pendingKey === 'topPending' || pendingKey === 'bottomPending')
-        return s.grid.some((row) => row[cfg.PENDING_COL_START + idx] !== 0);
-      return s.grid[cfg.PENDING_ROW_START + idx].some((v) => v !== 0);
-    };
-
-    const flying: FlyingTileDescriptor[] = result.landings
-      .filter((land) => !land.flyThrough || rowIsVisible(land.pendingIdx))
-      .map((land, idx) => {
-        const from = getPendingPos(land.pendingIdx);
-        let to: { x: number; y: number };
-        let flyThrough: boolean;
-        if (land.flyThrough) {
-          flyThrough = true;
-          if (pendingKey === 'leftPending')
-            to = { x: layout.sideOffset + layout.gridPx + GAP * 4 + CELL, y: from.y };
-          else if (pendingKey === 'rightPending') to = { x: -CELL * 2, y: from.y };
-          else if (pendingKey === 'topPending') to = { x: from.x, y: layout.CONTAINER_H + CELL };
-          else to = { x: from.x, y: -CELL };
-        } else {
-          flyThrough = false;
-          to = cellPos(land.row!, land.col!, layout);
-        }
-        return { id: idx, value: pendingArg[land.pendingIdx], from, to, flyThrough };
-      });
+    const flying: FlyingTileDescriptor[] = result.landings.map((land, idx) => ({
+      id: idx,
+      value: pendingArg[land.pendingIdx],
+      from: getPendingPos(land.pendingIdx),
+      to: cellPos(land.row, land.col, layout),
+    }));
 
     if (flying.length === 0) {
       set({ ...pc.payload, lastVerticalSide: newVerticalSide, lastHorizontalSide: newHorizontalSide });
@@ -152,8 +136,8 @@ const useGameStore = create<GameStore>((set, get) => ({
     });
 
     setTimeout(() => {
-      const { pendingCommit: commit } = get();
-      if (!commit) return;
+      const { pendingCommit: commit, runId: curRunId } = get();
+      if (!commit || curRunId !== runId) return;
       const { payload: commitPayload, pendingKey: pKey } = commit;
       set({ flyingTiles: [], flyingSource: null, pendingCommit: null });
       const { grid: payloadGrid } = commitPayload;

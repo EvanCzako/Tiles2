@@ -1,4 +1,4 @@
-import type { GridCfg, TileColor, PaletteId } from '../types';
+import type { GridCfg, GridMode, TileColor, PaletteId } from '../types';
 import { DEFAULT_CFG } from './config';
 
 // ── Specialty tile flags ─────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ function makeBoardRamp(n: number): BoardRamp {
 
 // Turn-0 value counts per board. 9x9 is the reference (9 values → a 10th fades
 // in). Sim-tuned so 7x7 and 11x11 survival/score track 9x9 (see scripts/simulate.ts).
-export const BOARD_VALUE_COUNTS: Record<string, number> = {
+export const BOARD_VALUE_COUNTS: Record<GridMode, number> = {
   '7x7': 7,
   '9x9': 9,
   '11x11': 10,
@@ -102,20 +102,22 @@ export const BOARD_VALUE_COUNTS: Record<string, number> = {
 // big board a comparable late-game choke. Sim-tuned so the planner bot's median
 // survival tracks 9x9 (see scripts/simulate.ts). 1.0 = shipped 9x9 rate; note
 // STONE_MAX is shared, so no board ever exceeds 9x9's peak stone density.
-export const BOARD_STONE_SCALE: Record<string, number> = {
+export const BOARD_STONE_SCALE: Record<GridMode, number> = {
   '7x7': 1,
   '9x9': 1,
   '11x11': 3.0,
 };
-const DEFAULT_VALUE_COUNT = 9;
 
-let boardRamps: Record<string, BoardRamp> = Object.fromEntries(
+// Both tables above (and boardRamps below) are keyed by GridMode and read
+// without a fallback on purpose: adding a board without tuning it should fail
+// to compile, not silently inherit 9x9's curve.
+let boardRamps = Object.fromEntries(
   Object.entries(BOARD_VALUE_COUNTS).map(([m, n]) => [m, makeBoardRamp(n)])
-);
+) as Record<GridMode, BoardRamp>;
 
 // Test hook: override a board's value count (rebuilds its ramp). Used by the
 // simulator's value-count sweep; the game always uses BOARD_VALUE_COUNTS.
-export function setBoardValueCount(board: string, n: number): void {
+export function setBoardValueCount(board: GridMode, n: number): void {
   boardRamps = { ...boardRamps, [board]: makeBoardRamp(n) };
 }
 
@@ -130,14 +132,14 @@ export interface SpawnMix {
 
 // Spawn odds for a given turn on a given board. Pure — shared by the game, the
 // simulator, and tests. `board` selects the per-board value spread.
-export function rampedSpawn(turn: number, board = '9x9'): SpawnMix {
-  const { easy, hard } = boardRamps[board] ?? makeBoardRamp(DEFAULT_VALUE_COUNT);
+export function rampedSpawn(turn: number, board: GridMode = '9x9'): SpawnMix {
+  const { easy, hard } = boardRamps[board];
   const d = clamp01((turn - RAMP_GRACE) / (RAMP_FULL - RAMP_GRACE));
   const weights = easy.map((e, i) => e + d * (hard[i] - e));
   const tenth = clamp01((turn - TENTH_START) / (TENTH_FULL - TENTH_START)) * TENTH_MAX;
   if (tenth > 0 && weights.length < MAX_VALUES) weights.push(tenth);
   const past = Math.max(0, turn - RAMP_GRACE);
-  const stoneScale = BOARD_STONE_SCALE[board] ?? 1;
+  const stoneScale = BOARD_STONE_SCALE[board];
   return {
     weights,
     bomb: BOMB_CHANCE,
@@ -155,7 +157,7 @@ let curLocked = LOCKED_CHANCE;
 // Apply the ramp for a given turn on a given board — the game calls this before
 // each push, the simulator before each turn, so both follow the identical
 // difficulty curve for that board.
-export function setDifficulty(turn: number, board = '9x9'): void {
+export function setDifficulty(turn: number, board: GridMode = '9x9'): void {
   const m = rampedSpawn(turn, board);
   spawnWeights = m.weights;
   curBomb = m.bomb;
@@ -187,11 +189,20 @@ export function randTileSide(): number {
 }
 
 // Exclusions compare base values so a bomb-N / locked-N is still treated as "an N".
+// Rejection sampling is capped: if the exclusions happen to cover most of the spawn
+// table (a narrow weight table, or a cell hemmed in by enough distinct neighbours),
+// an unbounded retry loop would hang the tab. A repeated neighbour value is a far
+// better failure than a frozen game.
+const MAX_SPAWN_ATTEMPTS = 20;
 export function randTileSideExcluding(...exclude: number[]): number {
   const ex = new Set(exclude.map(baseValue));
-  let v: number;
-  do { v = randTileSide(); } while (ex.has(v));
-  return v;
+  for (let i = 0; i < MAX_SPAWN_ATTEMPTS; i++) {
+    const v = randTileSide();
+    if (!ex.has(v)) return v;
+  }
+  // Fall back to the first allowed value; if every value is excluded, take any.
+  for (let v = 1; v <= spawnWeights.length; v++) if (!ex.has(v)) return v;
+  return randTileSide();
 }
 
 // Pending tiles can spawn as bombs, locked, or stone; corner-block / initial-board tiles do not.

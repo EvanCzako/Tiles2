@@ -1,5 +1,5 @@
 import type { Grid, GridCfg, Move } from '../types';
-import { randTileSide } from './tiles';
+import { randTileSideExcluding } from './tiles';
 
 interface CornerBlockSpec {
   rows: [number, number]; // [innerRow, outerRow]
@@ -70,17 +70,15 @@ export function settleCorners(
     for (const r of rows) {
       for (const c of cols) {
         if (settledGrid[r][c] !== 0) continue;
-        const excluded = new Set<number>();
+        const excluded: number[] = [];
         for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as [number, number][]) {
           const nr = r + dr, nc = c + dc;
           if (
             nr >= 0 && nr < cfg.ROWS && nc >= 0 && nc < cfg.COLS &&
             isCornerCell(nr, nc, cfg) && settledGrid[nr][nc] !== 0
-          ) excluded.add(settledGrid[nr][nc]);
+          ) excluded.push(settledGrid[nr][nc]);
         }
-        let v: number;
-        do { v = randTileSide(); } while (excluded.has(v));
-        settledGrid[r][c] = v;
+        settledGrid[r][c] = randTileSideExcluding(...excluded);
       }
     }
   }

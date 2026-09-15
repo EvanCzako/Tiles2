@@ -26,11 +26,12 @@ export interface Position {
   y: number;
 }
 
+// Every pushed pending tile lands on the board — a push that can't place a tile
+// reports it in PushResult.blockedIndices instead, so row/col are always known.
 export interface Landing {
   pendingIdx: number;
-  row?: number;
-  col?: number;
-  flyThrough?: boolean;
+  row: number;
+  col: number;
 }
 
 export interface PushResult {
@@ -94,7 +95,6 @@ export interface FlyingTileDescriptor {
   value: number;
   from: Position;
   to: Position;
-  flyThrough: boolean;
 }
 
 // Floating "+N" score indicator, positioned in arena pixel coordinates.
@@ -142,6 +142,10 @@ export type PendingSide = 'left' | 'right' | 'top' | 'bottom';
 export type FlyingSource = PendingSide | null;
 
 export interface GameState {
+  // Identifies the current game run. Bumped by every initState() (reset / board
+  // switch); async animation chains capture it and stop committing once it
+  // changes, so a cascade from an abandoned game can't write into the new one.
+  runId: number;
   gridMode: GridMode;
   cfg: GridCfg;
   layout: Layout;
