@@ -159,8 +159,9 @@ export interface SavedRun {
   lastHorizontalSide: HorizontalSide;
 }
 
-// Cross-run totals, accumulated locally. Per-board bests stay in the high-score
-// map (see store/persistence.ts) — these are the lifetime aggregates.
+// Cross-run totals for ONE board. Expected performance differs per board (a 7x7
+// run is longer but scores less than an 11x11 one), so pooling them produced
+// averages that described no board in particular — see StatsByBoard.
 export interface LifetimeStats {
   gamesPlayed: number;
   totalScore: number;
@@ -172,6 +173,10 @@ export interface LifetimeStats {
   nukesFired: number;
   cleanSweeps: number;
 }
+
+// Lifetime stats kept per board. Every counter is scoped to the board it was
+// earned on; the Stats screen shows one board at a time.
+export type StatsByBoard = Record<GridMode, LifetimeStats>;
 
 export interface GameState {
   // Identifies the current game run. Bumped by every initState() (reset / board
@@ -215,7 +220,7 @@ export interface GameState {
   // Suppresses decorative motion (shake, pulses, popup drift). See src/motion.ts
   // for what is and isn't covered.
   reducedMotion: boolean;
-  stats: LifetimeStats;
+  stats: StatsByBoard;
   // A resumable run was found in storage at load time and has not been consumed
   // or superseded yet — drives the menu's Continue button.
   hasSavedRun: boolean;
@@ -238,6 +243,10 @@ export interface GameActions {
   // is hidden; a no-op once the run is over.
   persistRun: () => void;
   resetStats: () => void;
+  // Called when the game screen is entered/left. Leaving mid-cascade collapses
+  // the remaining animation to zero delay with sound and haptics suppressed, so
+  // nothing plays out behind the menu (see setInstantSettle in store/animations).
+  setGameVisible: (visible: boolean) => void;
 }
 
 export type GameStore = GameState & GameActions;

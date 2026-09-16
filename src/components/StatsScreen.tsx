@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
 import { loadHighScores } from '../store/persistence';
@@ -9,31 +10,36 @@ interface StatsScreenProps {
 }
 
 const MODES = Object.keys(GRID_CONFIGS) as GridMode[];
-
 const fmt = (n: number) => n.toLocaleString();
+const label = (m: GridMode) => m.replace('x', ' × ');
 
 export default function StatsScreen({ navigate }: StatsScreenProps) {
-  const { stats, resetStats } = useGameStore(
-    useShallow((s) => ({ stats: s.stats, resetStats: s.resetStats }))
+  const { stats, resetStats, gridMode } = useGameStore(
+    useShallow((s) => ({ stats: s.stats, resetStats: s.resetStats, gridMode: s.gridMode }))
   );
-  // Read straight from storage: bests are written per board at game over and
-  // the store only ever holds the currently-selected board's.
+  // Open on the board being played; every figure below is scoped to the
+  // selection, since expected performance differs per board.
+  const [selected, setSelected] = useState<GridMode>(gridMode);
   const bests = loadHighScores();
+  const s = stats[selected];
 
-  const avgScore = stats.gamesPlayed > 0 ? Math.round(stats.totalScore / stats.gamesPlayed) : 0;
-  const avgTurns = stats.gamesPlayed > 0 ? Math.round(stats.totalTurns / stats.gamesPlayed) : 0;
+  const avgScore = s.gamesPlayed > 0 ? Math.round(s.totalScore / s.gamesPlayed) : 0;
+  const avgTurns = s.gamesPlayed > 0 ? Math.round(s.totalTurns / s.gamesPlayed) : 0;
 
   const rows: { label: string; value: string }[] = [
-    { label: 'Games played', value: fmt(stats.gamesPlayed) },
+    { label: 'Best score', value: fmt(bests[selected] ?? 0) },
+    { label: 'Games played', value: fmt(s.gamesPlayed) },
     { label: 'Average score', value: fmt(avgScore) },
     { label: 'Average run', value: `${fmt(avgTurns)} turns` },
-    { label: 'Longest run', value: `${fmt(stats.longestRun)} turns` },
-    { label: 'Best combo', value: stats.bestCombo > 0 ? `×${stats.bestCombo}` : '—' },
-    { label: 'Tiles annihilated', value: fmt(stats.tilesCleared) },
-    { label: 'Board wipes', value: fmt(stats.boardWipes) },
-    { label: 'Nukes fired', value: fmt(stats.nukesFired) },
-    { label: 'Clean sweeps', value: fmt(stats.cleanSweeps) },
+    { label: 'Longest run', value: `${fmt(s.longestRun)} turns` },
+    { label: 'Best combo', value: s.bestCombo > 0 ? `×${s.bestCombo}` : '—' },
+    { label: 'Tiles annihilated', value: fmt(s.tilesCleared) },
+    { label: 'Board wipes', value: fmt(s.boardWipes) },
+    { label: 'Nukes fired', value: fmt(s.nukesFired) },
+    { label: 'Clean sweeps', value: fmt(s.cleanSweeps) },
   ];
+
+  const totalGames = MODES.reduce((a, m) => a + stats[m].gamesPlayed, 0);
 
   return (
     <div className="settings-screen">
@@ -42,22 +48,27 @@ export default function StatsScreen({ navigate }: StatsScreenProps) {
         <h2 className="screen-heading">Stats</h2>
       </div>
       <div className="settings-content">
-        <div className="settings-card">
-          <p className="settings-label">Best scores</p>
-          <p className="settings-sublabel">Per board</p>
-          <div className="stats-best-row">
-            {MODES.map((mode) => (
-              <div key={mode} className="stats-best">
-                <span className="stats-best-mode">{mode.replace('x', ' × ')}</span>
-                <span className="stats-best-score">{fmt(bests[mode] ?? 0)}</span>
-              </div>
-            ))}
-          </div>
+        <div className="stats-tabs" role="tablist" aria-label="Board">
+          {MODES.map((m) => (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={selected === m}
+              className={`stats-tab${selected === m ? ' active' : ''}`}
+              onClick={() => setSelected(m)}
+            >
+              {label(m)}
+            </button>
+          ))}
         </div>
 
         <div className="settings-card">
-          <p className="settings-label">Lifetime</p>
-          <p className="settings-sublabel">All boards combined</p>
+          <p className="settings-label">{label(selected)}</p>
+          <p className="settings-sublabel">
+            {s.gamesPlayed === 0
+              ? 'No games finished on this board yet'
+              : `${fmt(s.gamesPlayed)} game${s.gamesPlayed === 1 ? '' : 's'} on record`}
+          </p>
           <dl className="stats-list">
             {rows.map((r) => (
               <div key={r.label} className="stats-row">
@@ -68,12 +79,12 @@ export default function StatsScreen({ navigate }: StatsScreenProps) {
           </dl>
         </div>
 
-        {stats.gamesPlayed > 0 && (
+        {totalGames > 0 && (
           <div className="settings-card">
             <div className="settings-row">
               <div className="settings-row-text">
                 <p className="settings-label">Reset stats</p>
-                <p className="settings-sublabel">Clears lifetime totals; best scores are kept</p>
+                <p className="settings-sublabel">Clears totals for all boards; best scores are kept</p>
               </div>
               <button className="settings-reset-btn" onClick={resetStats}>
                 Reset

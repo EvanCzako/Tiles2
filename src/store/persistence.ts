@@ -1,4 +1,4 @@
-import type { PaletteId, GridMode, SavedRun, LifetimeStats } from '../types';
+import type { PaletteId, GridMode, SavedRun, LifetimeStats, StatsByBoard } from '../types';
 import { PALETTE_IDS, GRID_CONFIGS } from '../game';
 import { systemPrefersReducedMotion } from '../motion';
 
@@ -9,7 +9,10 @@ const GRID_MODE_KEY = 'tilesGridMode';
 const HAPTICS_KEY = 'tilesHapticsOn';
 const REDUCED_MOTION_KEY = 'tilesReducedMotion';
 const RUN_KEY = 'tilesSavedRun';
-const STATS_KEY = 'tilesLifetimeStats';
+// New key: the old 'tilesLifetimeStats' held a single pooled record with no way
+// to tell which board each game was played on, so it is not migrated (and is
+// left in place rather than deleted).
+const STATS_KEY = 'tilesLifetimeStatsByBoard';
 
 // localStorage is not always usable: Safari private browsing, "block all cookies",
 // embedded webviews and storage-quota exhaustion all make getItem/setItem *throw*
@@ -205,23 +208,37 @@ export const EMPTY_STATS: LifetimeStats = {
   cleanSweeps: 0,
 };
 
-export function loadStats(): LifetimeStats {
+export function emptyStatsByBoard(): StatsByBoard {
+  return Object.fromEntries(
+    (Object.keys(GRID_CONFIGS) as GridMode[]).map((m) => [m, { ...EMPTY_STATS }])
+  ) as StatsByBoard;
+}
+
+function parseStats(v: unknown): LifetimeStats {
+  const out = { ...EMPTY_STATS };
+  if (!v || typeof v !== 'object') return out;
+  const p = v as Record<string, unknown>;
+  for (const k of Object.keys(EMPTY_STATS) as (keyof LifetimeStats)[]) {
+    const n = p[k];
+    if (typeof n === 'number' && Number.isFinite(n) && n >= 0) out[k] = n;
+  }
+  return out;
+}
+
+export function loadStats(): StatsByBoard {
   const raw = readItem(STATS_KEY);
-  if (!raw) return { ...EMPTY_STATS };
+  const out = emptyStatsByBoard();
+  if (!raw) return out;
   try {
     const p = JSON.parse(raw) as Record<string, unknown>;
-    const out = { ...EMPTY_STATS };
-    for (const k of Object.keys(EMPTY_STATS) as (keyof LifetimeStats)[]) {
-      const v = p[k];
-      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) out[k] = v;
-    }
+    for (const mode of Object.keys(GRID_CONFIGS) as GridMode[]) out[mode] = parseStats(p[mode]);
     return out;
   } catch {
-    return { ...EMPTY_STATS };
+    return out;
   }
 }
 
-export function saveStats(stats: LifetimeStats): void {
+export function saveStats(stats: StatsByBoard): void {
   writeItem(STATS_KEY, JSON.stringify(stats));
 }
 

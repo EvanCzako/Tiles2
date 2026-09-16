@@ -9,6 +9,11 @@ import type { Screen, GridMode } from '../types';
 const GRID_MODES: GridMode[] = ['9x9'];
 const SWATCH_VALUES = [1, 2, 3, 4, 5, 6, 7];
 
+// Kept in step with the mobile app's Settings → About, which needs these for
+// App Review (5.1.1 privacy policy reachable in-app, 1.5 developer contact).
+const PRIVACY_URL = 'https://evanczako.github.io/untiled-privacy/';
+const SUPPORT_URL = 'https://evanczako.github.io/untiled-privacy/support.html';
+
 interface SettingsScreenProps {
   navigate: (screen: Screen) => void;
 }
@@ -105,7 +110,7 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
         </div>
 
         <div className="settings-card">
-          <p className="settings-label">Color Theme</p>
+          <p className="settings-label">Tile Colors</p>
           <p className="settings-sublabel">Color-vision accessibility</p>
           <div className="palette-list">
             {PALETTE_IDS.map((id) => (
@@ -157,6 +162,26 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
               Reset
             </button>
           </div>
+        </div>
+
+        <div className="settings-card">
+          <p className="settings-label">About</p>
+          <a
+            className="settings-link"
+            href={PRIVACY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Privacy Policy<span className="settings-link-chevron">›</span>
+          </a>
+          <a
+            className="settings-link"
+            href={SUPPORT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Support<span className="settings-link-chevron">›</span>
+          </a>
         </div>
       </div>
     </div>

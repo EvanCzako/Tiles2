@@ -32,7 +32,10 @@ const storage = new MemoryStorage();
   removeEventListener: () => {},
 });
 
-import { saveRun, loadRun, clearRun, loadStats, saveStats, resetStats, EMPTY_STATS } from './persistence';
+import {
+  saveRun, loadRun, clearRun,
+  loadStats, saveStats, resetStats, EMPTY_STATS, emptyStatsByBoard,
+} from './persistence';
 import { GRID_CONFIGS } from '../game';
 import type { SavedRun, GridMode } from '../types';
 
@@ -152,32 +155,61 @@ describe('saved run validation', () => {
   });
 });
 
-describe('lifetime stats', () => {
-  test('absent stats read back as zeroes', () => {
-    expect(loadStats()).toEqual(EMPTY_STATS);
+describe('lifetime stats (per board)', () => {
+  test('absent stats read back as a zeroed record for every board', () => {
+    const loaded = loadStats();
+    for (const mode of Object.keys(GRID_CONFIGS) as GridMode[]) {
+      expect(loaded[mode]).toEqual(EMPTY_STATS);
+    }
   });
 
-  test('stats round-trip', () => {
-    const stats = { ...EMPTY_STATS, gamesPlayed: 12, totalScore: 98765, bestCombo: 8 };
+  test('per-board stats round-trip independently', () => {
+    const stats = emptyStatsByBoard();
+    stats['7x7'] = { ...EMPTY_STATS, gamesPlayed: 4, totalScore: 1200, longestRun: 210 };
+    stats['11x11'] = { ...EMPTY_STATS, gamesPlayed: 9, totalScore: 98765, bestCombo: 8 };
     saveStats(stats);
-    expect(loadStats()).toEqual(stats);
+    const loaded = loadStats();
+    expect(loaded['7x7'].gamesPlayed).toBe(4);
+    expect(loaded['11x11'].totalScore).toBe(98765);
+    // The board that was never played stays zeroed rather than inheriting.
+    expect(loaded['9x9']).toEqual(EMPTY_STATS);
+  });
+
+  test('a board missing from stored data reads back zeroed', () => {
+    storage.setItem('tilesLifetimeStatsByBoard', JSON.stringify({ '9x9': { gamesPlayed: 3 } }));
+    const loaded = loadStats();
+    expect(loaded['9x9'].gamesPlayed).toBe(3);
+    expect(loaded['7x7']).toEqual(EMPTY_STATS);
+    expect(loaded['11x11']).toEqual(EMPTY_STATS);
   });
 
   test('negative, non-numeric and missing counters fall back to zero', () => {
     storage.setItem(
-      'tilesLifetimeStats',
-      JSON.stringify({ gamesPlayed: -3, totalScore: 'lots', bestCombo: 5 })
+      'tilesLifetimeStatsByBoard',
+      JSON.stringify({ '9x9': { gamesPlayed: -3, totalScore: 'lots', bestCombo: 5 } })
     );
-    const loaded = loadStats();
-    expect(loaded.gamesPlayed).toBe(0);
-    expect(loaded.totalScore).toBe(0);
-    expect(loaded.bestCombo).toBe(5);
-    expect(loaded.nukesFired).toBe(0);
+    const s = loadStats()['9x9'];
+    expect(s.gamesPlayed).toBe(0);
+    expect(s.totalScore).toBe(0);
+    expect(s.bestCombo).toBe(5);
+    expect(s.nukesFired).toBe(0);
   });
 
-  test('resetStats clears the totals', () => {
-    saveStats({ ...EMPTY_STATS, gamesPlayed: 9 });
+  test('the old pooled key is ignored, not misattributed to a board', () => {
+    // It held no board information, so silently crediting it to 9x9 would invent
+    // history that never happened.
+    storage.setItem('tilesLifetimeStats', JSON.stringify({ gamesPlayed: 42, totalScore: 99999 }));
+    const loaded = loadStats();
+    for (const mode of Object.keys(GRID_CONFIGS) as GridMode[]) {
+      expect(loaded[mode]).toEqual(EMPTY_STATS);
+    }
+  });
+
+  test('resetStats clears every board', () => {
+    const stats = emptyStatsByBoard();
+    stats['9x9'] = { ...EMPTY_STATS, gamesPlayed: 9 };
+    saveStats(stats);
     resetStats();
-    expect(loadStats()).toEqual(EMPTY_STATS);
+    expect(loadStats()['9x9']).toEqual(EMPTY_STATS);
   });
 });

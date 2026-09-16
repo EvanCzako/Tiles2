@@ -1113,34 +1113,32 @@ body {
 
 /* ── Stats screen ───────────────────────────────────────────────────────────── */
 
-.stats-best-row {
+.stats-tabs {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.stats-best {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 10px 6px;
-  border-radius: 10px;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
   background: var(--surface);
   border: 1px solid var(--border-soft);
 }
 
-.stats-best-mode {
-  font-size: 0.72rem;
+.stats-tab {
+  flex: 1;
+  padding: 9px 4px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
   color: var(--text-muted);
-  letter-spacing: 0.04em;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
-.stats-best-score {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--gold);
+.stats-tab.active {
+  background: var(--accent-deep);
+  color: var(--text-bright);
 }
 
 .stats-list {
@@ -1170,4 +1168,28 @@ body {
   font-weight: 700;
   color: var(--text-bright);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Settings: About links ───────────────────────────────────────────────── */
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-top: 1px solid var(--border-soft);
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.settings-link:hover {
+  color: var(--text-bright);
+}
+
+.settings-link-chevron {
+  color: var(--text-faint);
+  font-size: 1.25rem;
+  font-weight: 600;
 }

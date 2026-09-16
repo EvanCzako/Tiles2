@@ -58,6 +58,28 @@ function runGuard(get: ZustandGet, set: ZustandSet): { alive: () => boolean; com
   };
 }
 
+// ── Fast-forward ───────────────────────────────────────────────────────────
+// When the player leaves the game screen mid-cascade the chain must not keep
+// animating, sounding and buzzing behind the menu. Rather than writing a second,
+// synchronous settle path (which would duplicate every cascade rule and drift
+// from this one), the SAME chain is re-run with its delays collapsed to zero and
+// its juice suppressed: the board reaches exactly the state it would have, the
+// score and stats count in full, and it all happens within a frame or two.
+//
+// Timers already scheduled keep their original delay, so one in-flight step may
+// still land before the flag takes effect — after that everything is silent.
+let instant = false;
+
+export function setInstantSettle(on: boolean): void {
+  instant = on;
+}
+
+const delay = (ms: number): number => (instant ? 0 : ms);
+/** Run a juice effect unless we're fast-forwarding a cascade nobody is watching. */
+const juice = (fn: () => void): void => {
+  if (!instant) fn();
+};
+
 // ── Juice helpers ──────────────────────────────────────────────────────────
 let popupSeq = 0;
 export function spawnScorePopup(
@@ -67,7 +89,7 @@ export function spawnScorePopup(
   get: ZustandGet,
   set: ZustandSet
 ): void {
-  if (cells.length === 0) return;
+  if (instant || cells.length === 0) return;
   const layout = get().layout;
   let sx = 0, sy = 0;
   for (const [r, c] of cells) {
@@ -88,6 +110,7 @@ export function spawnScorePopup(
 
 let announceSeq = 0;
 function announce(text: string, get: ZustandGet, set: ZustandSet, color?: string): void {
+  if (instant) return;
   const id = ++announceSeq;
   set({ announcement: { text, id, color } });
   setTimeout(() => {
@@ -100,7 +123,7 @@ function triggerShake(tier: ShakeState['tier'], get: ZustandGet, set: ZustandSet
   // Screen shake is the one effect here that is a genuine vestibular trigger,
   // so reduced motion drops it at the source rather than just muting the CSS —
   // that also skips the state churn and the cleanup timer.
-  if (get().reducedMotion) return;
+  if (instant || get().reducedMotion) return;
   const id = ++shakeSeq;
   set({ shake: { tier, id } });
   setTimeout(() => {
@@ -129,8 +152,7 @@ export function endTurn(
   if (!get().cleanSweepAwarded && get().turnClearedTiles > 0 && isPlayAreaEmpty(grid, curCfg)) {
     const mult = Math.min(get().combo, MAX_COMBO);
     const bonus = CLEAN_SWEEP_BONUS_PER_TILE * get().turnClearedTiles * mult;
-    playCleanSweep();
-    hapticCleanSweep();
+    juice(() => { playCleanSweep(); hapticCleanSweep(); });
     bumpStats(get, set, { cleanSweeps: 1 });
     triggerShake('big', get, set);
     announce('CLEAN SWEEP!', get, set, '#ffcc00');
@@ -157,8 +179,7 @@ export function endTurn(
       const newHighScore = Math.max(get().score, get().highScore);
       saveHighScore(get().gridMode, newHighScore);
       commit({ gameOver: true, highScore: newHighScore });
-      playGameOver();
-      hapticGameOver();
+      juice(() => { playGameOver(); hapticGameOver(); });
       if (alive()) {
         recordRunEnd(get, set);
         clearRun();
@@ -227,7 +248,7 @@ export function endTurn(
         if (!alive()) return;
         commit({ grid: midGrid, flyingTiles: [], collapsingCells: new Set() });
         runPhase2();
-      }, ANIM_MS + 30);
+      }, delay(ANIM_MS + 30));
     })
   );
 }
@@ -290,23 +311,21 @@ export function runCollapseLoop(
       turnClearedTiles: get().turnClearedTiles + annihilatedCells.length - unlockedCells.length,
     });
 
-    playMatch(mult);
-    hapticMatch(mult);
+    juice(() => { playMatch(mult); hapticMatch(mult); });
     bumpStats(get, set, { tilesCleared: annihilatedCells.length - unlockedCells.length });
     raiseStat(get, set, 'bestCombo', mult);
     if (bombBlastCells.length > 0) {
-      playBomb();
+      juice(playBomb);
       triggerShake('small', get, set);
     }
     if (boardWipeValues.length > 0) {
-      playBoardWipe();
-      hapticBoardWipe();
+      juice(() => { playBoardWipe(); hapticBoardWipe(); });
       bumpStats(get, set, { boardWipes: boardWipeValues.length });
       // "ALL 5s!" — tinted with the wiped value's tile color
       const label = boardWipeValues.map((v) => `${v}s`).join(' & ');
       announce(`ALL ${label}!`, get, set, getTileColor(boardWipeValues[0], get().colorPalette).bg);
     }
-    if (nowArmed && !wasArmed) playNukeReady();
+    if (nowArmed && !wasArmed) juice(playNukeReady);
     if (gained > 0) spawnScorePopup(annihilatedCells, `+${gained}`, mult, get, set);
 
     if (boardWipeGroupCells.length > 0) {
@@ -327,14 +346,14 @@ export function runCollapseLoop(
             ]),
           });
         }
-        setTimeout(proceed, FLASH_MS);
-      }, BOARD_WIPE_STAGGER_MS);
+        setTimeout(proceed, delay(FLASH_MS));
+      }, delay(BOARD_WIPE_STAGGER_MS));
     } else {
       commit({
         annihilateSet: new Set(regularCells.map(([r, c]) => `${r},${c}`)),
         ...(bombFlash.size > 0 && { bombFlashSet: bombFlash }),
       });
-      setTimeout(proceed, FLASH_MS);
+      setTimeout(proceed, delay(FLASH_MS));
     }
   };
 
@@ -362,7 +381,7 @@ export function runCollapseLoop(
           if (!alive()) return;
           commit({ grid: stage.grid, flyingTiles: [], collapsingCells: new Set() });
           runStages(i + 1);
-        }, ANIM_MS + 30);
+        }, delay(ANIM_MS + 30));
       })
     );
   };
@@ -391,7 +410,7 @@ export function runCollapseLoop(
         if (!alive()) return;
         commit({ grid: midGrid, flyingTiles: [], collapsingCells: new Set() });
         runStages(0);
-      }, ANIM_MS + 30);
+      }, delay(ANIM_MS + 30));
     })
   );
 }

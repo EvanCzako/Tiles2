@@ -20,8 +20,11 @@ import {
   isBomb,
   baseValue,
   rampedSpawn,
+  GRID_CONFIGS,
+  setDifficulty,
+  settleCorners,
 } from './index.js';
-import type { Grid, GridCfg } from '../types.js';
+import type { Grid, GridCfg, GridMode } from '../types.js';
 
 // These tests are written against the default (9x9) board.
 const { ROWS, COLS, PENDING_SIZE, PENDING_ROW_START, PENDING_COL_START, CENTER_COL, CENTER_ROW } =
@@ -1387,4 +1390,66 @@ describe('combo scoring', () => {
     );
     expect(score * 5).toBe(20);
   });
+});
+
+// ── Pending strip: no adjacent duplicates ──────────────────────────────────
+// Refreshing a slot used to exclude only the PREVIOUS slot. A blocked slot keeps
+// its old value and never regenerates, so a slot refreshed just before it could
+// be handed that same value — producing adjacent twins in the visible strip.
+describe('pending strips never show adjacent duplicates', () => {
+  const adjacentDupes = (strip: number[]): number => {
+    let n = 0;
+    for (let i = 1; i < strip.length; i++) {
+      if (baseValue(strip[i]) === baseValue(strip[i - 1])) n++;
+    }
+    return n;
+  };
+
+  test.each(['7x7', '9x9', '11x11'] as GridMode[])(
+    '%s: freshly created strips have no adjacent duplicates',
+    (mode) => {
+      const cfg = GRID_CONFIGS[mode];
+      setDifficulty(0, mode);
+      for (let i = 0; i < 400; i++) {
+        expect(adjacentDupes(createInitialPending(cfg))).toBe(0);
+      }
+    }
+  );
+
+  test.each(['7x7', '9x9', '11x11'] as GridMode[])(
+    '%s: strips stay duplicate-free across a long game, including blocked pushes',
+    (mode) => {
+      const cfg = GRID_CONFIGS[mode];
+      setDifficulty(0, mode);
+      let grid = createInitialGrid(cfg);
+      const pending: Record<string, number[]> = {
+        left: createInitialPending(cfg),
+        right: createInitialPending(cfg),
+        top: createInitialPending(cfg),
+        bottom: createInitialPending(cfg),
+      };
+      const fns = {
+        left: pushFromLeft, right: pushFromRight, top: pushFromTop, bottom: pushFromBottom,
+      } as const;
+      const sides = ['left', 'right', 'top', 'bottom'] as const;
+
+      let sawBlocked = false;
+      for (let turn = 0; turn < 250; turn++) {
+        setDifficulty(turn + 1, mode);
+        const side = sides[turn % 4];
+        const res = fns[side](grid, pending[side], cfg);
+        if (res.blockedIndices.length > 0) sawBlocked = true;
+        pending[side] = res.pending;
+        grid = res.grid;
+        // The refreshed strip must be clean right now — this is what the player sees.
+        expect(adjacentDupes(pending[side])).toBe(0);
+        grid = collapseGrid(grid, cfg, 'top', 'left').grid;
+        const ann = annihilateAdjacent(grid, cfg);
+        grid = ann.grid;
+        grid = settleCorners(grid, cfg).grid;
+      }
+      // The regression only shows up when slots get blocked, so assert we hit that path.
+      expect(sawBlocked).toBe(true);
+    }
+  );
 });

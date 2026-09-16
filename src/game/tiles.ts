@@ -206,8 +206,8 @@ export function randTileSideExcluding(...exclude: number[]): number {
 }
 
 // Pending tiles can spawn as bombs, locked, or stone; corner-block / initial-board tiles do not.
-export function randPendingTile(exclude: number): number {
-  const v = randTileSideExcluding(exclude);
+export function randPendingTile(...exclude: number[]): number {
+  const v = randTileSideExcluding(...exclude);
   const r = Math.random();
   if (r < curBomb)                        return v + BOMB_FLAG;
   if (r < curBomb + curLocked)            return v + LOCKED_FLAG;

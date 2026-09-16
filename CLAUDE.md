@@ -73,7 +73,11 @@ retune with `npm run sim -- boards`.
 read it before changing any spawn/ramp constant; the values are sim-tuned and the reasoning
 is not recoverable from the code.
 
-Adjacent pending tiles are never the same value. Value exclusion (`randTileSideExcluding`)
+Adjacent pending tiles are never the same value: a refreshed slot excludes **both**
+neighbours. Excluding only the previous one was not enough — a blocked slot keeps
+its old value and never regenerates, so a slot refreshed just before it could be
+handed that same value (regression-tested in `gameLogic.test.ts`).
+Value exclusion (`randTileSideExcluding`)
 is best-effort rejection sampling capped at 20 draws — if the exclusions cover nearly the
 whole spawn table it returns the first allowed value (and, failing that, any value) rather
 than looping forever.
@@ -301,13 +305,41 @@ row hides itself (`hapticsSupported()`). Call sites mirror the sound ones:
 
 ## Lifetime Stats
 `LifetimeStats` (gamesPlayed, totalScore, totalTurns, longestRun, bestCombo,
-tilesCleared, boardWipes, nukesFired, cleanSweeps) accumulates across runs in
-localStorage key `'tilesLifetimeStats'`. Helpers in `store/stats.ts`:
+tilesCleared, boardWipes, nukesFired, cleanSweeps) accumulates across runs
+**per board** (`StatsByBoard = Record<GridMode, LifetimeStats>`) in localStorage
+key `'tilesLifetimeStatsByBoard'`. Pooling boards produced averages that described
+none of them — a 7×7 run is longer but scores less than an 11×11 one. The old
+pooled `'tilesLifetimeStats'` key carried no board information and is deliberately
+**not** migrated (crediting it to one board would invent history); it is left in
+place rather than deleted. The Stats screen shows one board at a time, opening on
+the one being played. Helpers in `store/stats.ts`:
 `bumpStats` (in-memory increment), `raiseStat` (best-ever), `flushStats` (write),
 `recordRunEnd` (fold a finished run in and flush). Counters are bumped during
 play but **flushed only at end of turn / game over / tab hide**, so a long
 cascade doesn't thrash localStorage mid-animation. Surfaced on the Stats screen
 alongside per-board bests.
+
+## Fast-forward (leaving mid-cascade)
+Walking off the game screen while a cascade is running must not leave it
+animating, sounding and buzzing behind the menu. `setGameVisible(false)` (called
+from `GameScreen`'s unmount effect) flips `setInstantSettle` in
+`store/animations.ts`, which collapses every animation delay to 0 and suppresses
+all juice — sound, haptics, shake, popups, announcements. Scoring, stats and the
+run snapshot still happen in full, so the player keeps everything they earned and
+Continue returns them to a fully settled board.
+
+This deliberately re-runs the **same** chain rather than adding a second
+synchronous settle path: duplicating the cascade rules would drift from the
+animated one. Timers already scheduled keep their original delay, so one in-flight
+step can still land before the flag takes effect; everything after it is silent.
+
+## Blocked pushes are free
+A swipe into a side whose every pending tile is blocked changes nothing, so it
+costs nothing — no turn, no ramp advance, no nuke drain, no sound or haptic
+(`canPushFrom` in `store/index.ts`). It used to consume a turn, which also
+advanced the turn-based difficulty ramp for free. The branch still calls
+`checkGameOver` first: a dead board must show the game-over screen rather than
+silently swallow the swipe.
 
 ## Page Lifecycle (`src/hooks/useLifecycle.ts`)
 Mounted once at the app root (so a run is protected on every screen). On
@@ -384,8 +416,8 @@ scripts/
 | `GameOverOverlay.tsx` | Overlay with Play Again + Main Menu |
 | `MenuScreen.tsx` | Title "UNTILED" + decorative mini-tile row + Continue (when a run is resumable) / Play·New Game / Boards / How to Play / Stats / Settings buttons + best-score badge |
 | `BoardsScreen.tsx` | Board-size picker (7×7 / 9×9 / 11×11) with per-board best scores; selecting one sets `gridMode` and starts a game |
-| `HowToPlayScreen.tsx` | Rule cards (icon + text + mini `Tile` examples) covering push, annihilation, combos, nuke, clean sweep, bombs/stones, corners, game over |
-| `SettingsScreen.tsx` | Card-based: sound / haptics / reduce-motion toggles, color palette, high score + reset. (Board size lives in the Boards screen; the Settings grid-size selector stays hidden. The haptics row hides itself where the browser has no Vibration API) |
+| `HowToPlayScreen.tsx` | Rule cards (icon + text + mini `Tile` examples) covering push, annihilation, combos, nuke, clean sweep, bombs/stones, corners, game over (copy is author-written — edit the `sections` array at the top of the file) |
+| `SettingsScreen.tsx` | Card-based: sound / haptics / reduce-motion toggles, tile palette, high score + reset, About (privacy policy + support links, kept in step with mobile where they are an App Review requirement). (Board size lives in the Boards screen; the Settings grid-size selector stays hidden. The haptics row hides itself where the browser has no Vibration API) |
 | `StatsScreen.tsx` | Per-board best scores + lifetime totals (see Lifetime Stats), with a reset that clears totals but keeps bests |
 
 ## Hooks

@@ -42,15 +42,42 @@ import {
   loadRun,
   clearRun,
   resetStats as clearStats,
-  EMPTY_STATS,
+  emptyStatsByBoard,
 } from './persistence';
-import { runCollapseLoop, nukeCenterAndSettle } from './animations';
+import { runCollapseLoop, nukeCenterAndSettle, setInstantSettle } from './animations';
 import { recordRunEnd, flushStats, bumpStats } from './stats';
 import { setSoundEnabled, playPush, playGameOver } from '../sound';
 import { setHapticsEnabled, hapticPush, hapticGameOver } from '../haptics';
 
 setSoundEnabled(loadSoundOn());
 setHapticsEnabled(loadHapticsOn());
+
+// Would a swipe from this direction actually place anything? Uses the real push
+// logic against a dummy strip so it can't drift from what the push will do.
+const PUSH_FN_FOR: Record<Direction, typeof pushFromLeft> = {
+  left: pushFromRight,
+  right: pushFromLeft,
+  down: pushFromTop,
+  up: pushFromBottom,
+};
+
+function canPushFrom(direction: Direction, grid: Grid, cfg: GridCfg): boolean {
+  const dummy = Array(cfg.PENDING_SIZE).fill(1) as number[];
+  return PUSH_FN_FOR[direction](grid, dummy, cfg).landings.length > 0;
+}
+
+// Close out a finished run: persist the best score, fold the run into lifetime
+// stats, drop the resumable save, and fire the game-over juice.
+function endGame(get: () => GameStore, set: (p: Partial<GameStore>) => void): void {
+  const newHighScore = Math.max(get().score, get().highScore);
+  saveHighScore(get().gridMode, newHighScore);
+  set({ gameOver: true, highScore: newHighScore });
+  playGameOver();
+  hapticGameOver();
+  recordRunEnd(get, set);
+  clearRun();
+  set({ hasSavedRun: false });
+}
 
 const useGameStore = create<GameStore>((set, get) => ({
   ...initState(),
@@ -65,7 +92,13 @@ const useGameStore = create<GameStore>((set, get) => ({
   setHapticsOn(on) { saveHapticsOn(on); setHapticsEnabled(on); set({ hapticsOn: on }); },
   setReducedMotion(on) { saveReducedMotion(on); set({ reducedMotion: on }); },
 
-  resetStats() { clearStats(); set({ stats: { ...EMPTY_STATS } }); },
+  setGameVisible(visible: boolean) {
+    // Fast-forward whatever is still animating once the player walks away; play
+    // at normal speed again when they come back.
+    setInstantSettle(!visible);
+  },
+
+  resetStats() { clearStats(); set({ stats: emptyStatsByBoard() }); },
 
 
   // Snapshot the run so a reload, a reclaimed tab or a stray navigation doesn't
@@ -143,6 +176,18 @@ const useGameStore = create<GameStore>((set, get) => ({
   triggerPush(direction: Direction) {
     const s = get();
     if (s.animating || s.gameOver) return;
+    // A swipe into a side whose every pending tile is blocked changes nothing, so
+    // it must cost nothing: no turn, no ramp advance, no nuke drain, and no sound
+    // or haptic. Charging a turn for a no-op also accelerated the turn-based
+    // difficulty ramp for free.
+    if (!canPushFrom(direction, s.grid, s.cfg)) {
+      // The normal game-over check lives at the end of a turn, so a live board
+      // always has at least one side that lands. Re-check here anyway: silently
+      // swallowing the swipe on a board that IS dead would leave the player
+      // swiping at nothing with no game-over screen.
+      if (checkGameOver(s.grid, s.cfg)) endGame(get, set);
+      return;
+    }
     // Captured so the deferred commit below can't land in a different game (the
     // player can reset or switch boards during the push animation).
     const runId = s.runId;
@@ -200,16 +245,7 @@ const useGameStore = create<GameStore>((set, get) => ({
 
     if (flying.length === 0) {
       set({ ...pc.payload, lastVerticalSide: newVerticalSide, lastHorizontalSide: newHorizontalSide });
-      if (checkGameOver(pc.payload.grid, cfg)) {
-        const newHighScore = Math.max(get().score, get().highScore);
-        saveHighScore(get().gridMode, newHighScore);
-        set({ gameOver: true, highScore: newHighScore });
-        playGameOver();
-        hapticGameOver();
-        recordRunEnd(get, set);
-        clearRun();
-        set({ hasSavedRun: false });
-      }
+      if (checkGameOver(pc.payload.grid, cfg)) endGame(get, set);
       return;
     }
 

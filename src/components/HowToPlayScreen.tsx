@@ -18,12 +18,12 @@ const sections: Section[] = [
   {
     icon: '👆',
     title: 'Push',
-    body: 'Swipe — or use the arrow keys — to push a strip of five tiles into the board from that side. All four incoming strips are always visible, so plan ahead.',
+    body: 'Swipe to push a strip of tiles into the board from that side. Plan ahead!',
   },
   {
     icon: '💥',
     title: 'Annihilate',
-    body: 'Matching tiles that touch annihilate and score. A pair clears just those two — but connect three or more and every tile of that value anywhere on the board is wiped.',
+    body: 'Match similar tiles (same number/color) to annihilate them and score. A pair just clears two, but connect three or more of the same type and you’ll wipe the board of that value!',
     examples: [
       { tiles: [2, 2], caption: 'pair — clears itself' },
       { tiles: [5, 5, 5], caption: '3+ — wipes every 5 on the board' },
@@ -32,33 +32,33 @@ const sections: Section[] = [
   {
     icon: '⚡',
     title: 'Cascade Combos',
-    body: 'After a clear, tiles collapse toward the center. If the collapse creates new matches, the cascade continues and your multiplier climbs — up to ×8 per wave.',
+    body: 'After a clear, tiles collapse toward the center of the board. If the collapse creates new matches, the cascade continues and your multiplier climbs (up to 8x per turn).',
   },
   {
     icon: '☢',
     title: 'Nuke',
-    body: "Every match adds to the nuke meter — bigger combos charge it faster. When the button reads NUKE, tap it (or press Space) to blast a plus-shaped hole in the center of the board at ×8 points. But don't sit on it: an armed nuke leaks charge every swipe, and if the meter drains empty the nuke is gone.",
+    body: 'Every match adds to the nuke meter. Bigger combos charge it faster. When the button lights up and reads “NUKE”, tap it to clear a hole in the center of the board. However, a charged meter drains on every swipe - use it or lose it!',
   },
   {
     icon: '✨',
     title: 'Clean Sweep',
-    body: 'Empty the entire board in one turn and you bank a bonus — the more tiles you cleared, the bigger it pays.',
+    body: 'Empty the entire board in one turn and you bank a bonus - the more tiles you cleared, the bigger it pays!',
   },
   {
     icon: '💣',
     title: 'Bombs & Stones',
-    body: 'Clearing a bomb blasts everything around it — and bombs caught in a blast chain. Stones never budge and hide their value; clear them with a bomb, or by wiping their value board-wide.',
+    body: 'Clearing a bomb blasts every neighbor around it. Stones never budge - clear them with a bomb or a tile of matching color.',
     examples: [{ tiles: [BOMB_FLAG + 3, STONE_FLAG + 4], caption: 'bomb · stone' }],
   },
   {
     icon: '🧱',
-    title: 'Corner Pockets',
-    body: "The four 2×2 corners hold obstacle tiles with their own gravity. Pushes can't reach them — but board-wide wipes and bomb blasts can.",
+    title: 'Corners',
+    body: 'The four corner sections are self-contained, but you can still create combos with them!',
   },
   {
     icon: '🏁',
     title: 'Game Over',
-    body: 'The run ends when no push can land a single tile. Keep the center breathing.',
+    body: 'The game ends when no further tiles can be swiped into the board. Keep the center breathing!',
   },
 ];
 

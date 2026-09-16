@@ -34,7 +34,13 @@ export function pushFromLeft(grid: Grid, leftPending: number[], cfg: GridCfg = D
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
+    // Exclude BOTH neighbours. Looking only backwards was not enough: a
+    // blocked slot keeps its old value and never regenerates, so a slot
+    // refreshed before it could collide with the value still sitting there.
+    newPending[i] = randPendingTile(
+      i > 0 ? newPending[i - 1] : -1,
+      i + 1 < PENDING_SIZE ? newPending[i + 1] : -1
+    );
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
@@ -65,7 +71,13 @@ export function pushFromRight(grid: Grid, rightPending: number[], cfg: GridCfg =
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
+    // Exclude BOTH neighbours. Looking only backwards was not enough: a
+    // blocked slot keeps its old value and never regenerates, so a slot
+    // refreshed before it could collide with the value still sitting there.
+    newPending[i] = randPendingTile(
+      i > 0 ? newPending[i - 1] : -1,
+      i + 1 < PENDING_SIZE ? newPending[i + 1] : -1
+    );
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
@@ -96,7 +108,13 @@ export function pushFromTop(grid: Grid, topPending: number[], cfg: GridCfg = DEF
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
+    // Exclude BOTH neighbours. Looking only backwards was not enough: a
+    // blocked slot keeps its old value and never regenerates, so a slot
+    // refreshed before it could collide with the value still sitting there.
+    newPending[i] = randPendingTile(
+      i > 0 ? newPending[i - 1] : -1,
+      i + 1 < PENDING_SIZE ? newPending[i + 1] : -1
+    );
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }
@@ -127,7 +145,13 @@ export function pushFromBottom(grid: Grid, bottomPending: number[], cfg: GridCfg
       blockedIndices.push(i);
       continue;
     }
-    newPending[i] = randPendingTile(i > 0 ? newPending[i - 1] : -1);
+    // Exclude BOTH neighbours. Looking only backwards was not enough: a
+    // blocked slot keeps its old value and never regenerates, so a slot
+    // refreshed before it could collide with the value still sitting there.
+    newPending[i] = randPendingTile(
+      i > 0 ? newPending[i - 1] : -1,
+      i + 1 < PENDING_SIZE ? newPending[i + 1] : -1
+    );
   }
   return { grid: newGrid, pending: newPending, landings, blockedIndices };
 }

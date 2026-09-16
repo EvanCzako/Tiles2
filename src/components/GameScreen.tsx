@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
 import { useScale } from '../hooks/useScale';
@@ -32,6 +33,7 @@ export default function GameScreen({ navigate }: GameScreenProps) {
     reset,
     shake,
     announcement,
+    setGameVisible,
   } = useGameStore(
     useShallow((s) => ({
       score: s.score,
@@ -48,9 +50,17 @@ export default function GameScreen({ navigate }: GameScreenProps) {
       reset: s.reset,
       shake: s.shake,
       announcement: s.announcement,
+      setGameVisible: s.setGameVisible,
     }))
   );
   const { CONTAINER_W, CONTAINER_H } = layout;
+
+  // Leaving this screen mid-cascade fast-forwards the rest silently, so it never
+  // plays out behind the menu.
+  useEffect(() => {
+    setGameVisible(true);
+    return () => setGameVisible(false);
+  }, [setGameVisible]);
 
   const scale = useScale(CONTAINER_W, CONTAINER_H);
   useInput(triggerPush, fireNuke);
