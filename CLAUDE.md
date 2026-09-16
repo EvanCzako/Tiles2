@@ -224,6 +224,10 @@ scorePopups         // ScorePopup[] — floating "+N" indicators
 shake               // { tier: 'small'|'big', id } | null — screen shake trigger
 announcement        // { text, id, color? } | null — "ALL Ns!" / "NUKE!" banner
 soundOn             // sound toggle (persisted)
+hapticsOn           // vibration toggle (persisted)
+reducedMotion       // suppress decorative motion (persisted; defaults to the OS setting)
+stats               // LifetimeStats — cross-run totals (persisted)
+hasSavedRun         // a resumable run exists in storage (drives the menu's Continue)
 ```
 
 **Run guard (`runGuard` in `store/animations.ts`):** cascades are chains of
@@ -245,11 +249,80 @@ High scores are persisted per grid mode to `localStorage` key `'tilesHighScores'
 
 ---
 
+## Run Persistence (Continue)
+A run is 100+ pushes long, so losing one to a reload or a browser-reclaimed tab
+is a real cost. The pure run state (`SavedRun` in `types.ts` — grid, the four
+pending strips, score, turnCount, nuke meter, last sides) is written to
+localStorage key `'tilesSavedRun'` at **end of turn** (`finalize` in
+`store/animations.ts`, the one quiescent point in a cascade) and again when the
+tab is hidden (`hooks/useLifecycle.ts`). Animation sets, flying tiles and layout
+are transient and are rebuilt on resume.
+
+- `persistRun()` — snapshot; a no-op (and clears the slot) at turn 0 or game over.
+- `resumeRun()` — `initState()` first so every transient field and the `runId`
+  start clean, then the saved values are laid over it, then
+  `setDifficulty(turnCount, mode)` winds the ramp back to where the run was.
+  Returns `false` and leaves state untouched if there is nothing valid to load.
+- `loadRun()` **validates before returning**: schema version, known board mode,
+  grid dimensions matching that mode's cfg, pending strips of `PENDING_SIZE`,
+  finite numeric cells, and scalar coercion. A grid whose dimensions disagree
+  with its mode is exactly the state the run guard exists to prevent, so a
+  mismatched save is discarded rather than loaded. Covered by
+  `src/store/persistence.test.ts`.
+- `reset()` and `setGridMode()` clear the save — starting a new game abandons it.
+  Game over clears it too, after folding the run into lifetime stats.
+
+The menu offers **Continue** when a run is live in memory *or* persisted; a live
+run takes precedence (reloading from storage would roll back to the last settled
+turn). **New Game** calls `reset()`, so it genuinely starts fresh.
+
+## Reduced Motion
+`reducedMotion` defaults to the OS `prefers-reduced-motion` query and is
+overridable in Settings (persisted to `'tilesReducedMotion'`; the OS value is
+tracked live only while no explicit override exists). `App.tsx` mirrors it onto
+`document.documentElement.dataset.reducedMotion`, and CSS keys off that
+attribute rather than the media query so the override works in both directions.
+
+It suppresses **decorative** motion only: screen shake (dropped at the source in
+`triggerShake`), the nuke-meter pulse, the combo badge pop, and the popup /
+announcement / game-over animations (which cross-fade in place instead). Tile
+flight and collapse motion are deliberately untouched — they are how the player
+reads the board, and the cascade's `setTimeout` chain is timed against `ANIM_MS`,
+so suppressing them would desynchronise animation from state commits. Rationale
+lives in `src/motion.ts`.
+
+## Haptics (`src/haptics.ts`)
+Progressive enhancement over the Vibration API — Android Chrome/Firefox only;
+iOS Safari exposes no such API, so every call is a no-op there and the Settings
+row hides itself (`hapticsSupported()`). Call sites mirror the sound ones:
+`hapticPush`, `hapticMatch(combo)`, `hapticBoardWipe`, `hapticNuke`,
+`hapticCleanSweep`, `hapticGameOver`. Persisted to `'tilesHapticsOn'`.
+**The RN port swaps this module's body for expo-haptics and keeps the call sites.**
+
+## Lifetime Stats
+`LifetimeStats` (gamesPlayed, totalScore, totalTurns, longestRun, bestCombo,
+tilesCleared, boardWipes, nukesFired, cleanSweeps) accumulates across runs in
+localStorage key `'tilesLifetimeStats'`. Helpers in `store/stats.ts`:
+`bumpStats` (in-memory increment), `raiseStat` (best-ever), `flushStats` (write),
+`recordRunEnd` (fold a finished run in and flush). Counters are bumped during
+play but **flushed only at end of turn / game over / tab hide**, so a long
+cascade doesn't thrash localStorage mid-animation. Surfaced on the Stats screen
+alongside per-board bests.
+
+## Page Lifecycle (`src/hooks/useLifecycle.ts`)
+Mounted once at the app root (so a run is protected on every screen). On
+`visibilitychange → hidden` it snapshots the run and calls `suspendAudio()`;
+`pagehide` covers reload/close (`beforeunload` is deliberately avoided — it is
+unreliable on iOS and blocks the bfcache). This is the browser counterpart of
+the `AppState` handling the RN port still needs.
+
+---
+
 ## Screen Navigation (`src/App.tsx`)
 Simple `useState('menu')` router, with the active screen wrapped in `ErrorBoundary` —
 a render-time throw shows a recoverable crash screen ("Back to Menu" resets the store and
 returns to the menu) instead of a blank page. Note it cannot catch throws from
-`setTimeout`/`rAF` callbacks, which is where the cascade runs. Screens: `'menu'` → `'game'` | `'boards'` | `'howToPlay'` | `'settings'`. Each screen receives `navigate` prop. The **Boards** screen (`BoardsScreen.tsx`) lists 7×7 / 9×9 / 11×11 (with per-board best scores via `loadHighScores()`); picking one calls `setGridMode(mode)` then `navigate('game')`. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
+`setTimeout`/`rAF` callbacks, which is where the cascade runs. Screens: `'menu'` → `'game'` | `'boards'` | `'howToPlay'` | `'settings'` | `'stats'`. Each screen receives `navigate` prop. The **Boards** screen (`BoardsScreen.tsx`) lists 7×7 / 9×9 / 11×11 (with per-board best scores via `loadHighScores()`); picking one calls `setGridMode(mode)` then `navigate('game')`. The "UNTILED" title in `GameHeader` is also clickable and navigates back to menu.
 
 ## Combo Strip
 A 40 px flex strip sits between `GameHeader` and the arena in `GameScreen`. It is always present (prevents layout shift) and holds three zones: the NUKE charge button (left), the combo badge slot (center), and an invisible spacer (`.combo-strip-spacer`, right) that counterweights the NUKE button so the badge stays centered. When `combo >= 2` the center renders an animated `×N` badge (CSS class `combo-strip-badge`) using `COMBO_COLORS` (8-step ramp, grey→yellow→orange→red-orange→red→magenta→purple→white-hot, one per combo level). `key={combo}` on the badge triggers a fresh scale-pop animation on each increment. The strip height is included in `HEADER_H` so `useScale` accounts for it.
@@ -272,15 +345,19 @@ src/
     index.ts      — re-exports all of the above
     gameLogic.test.ts — pure logic tests (see Testing)
   store/          ← Zustand store, split by concern
-    persistence.ts — localStorage high score helpers
+    persistence.ts — localStorage: high scores, prefs, saved run, lifetime stats
     init.ts       — initState (fresh game state + a new runId)
     animations.ts — endTurn, runCollapseLoop, nukeCenterAndSettle
+    stats.ts      — bumpStats / raiseStat / flushStats / recordRunEnd
     index.ts      — useGameStore (triggerPush + store creation)
+    persistence.test.ts — saved-run validation + stats round-trip (see Testing)
   components/     ← React components
-  hooks/          ← useInput, useScale
+  hooks/          ← useInput, useScale, useLifecycle
   types.ts        — all shared TypeScript types
   constants.ts    — CELL, GAP, animation/juice timings, COMBO_COLORS
-  sound.ts        — synthesized WebAudio SFX (see Juice section)
+  sound.ts        — synthesized WebAudio SFX (see Juice section) + suspendAudio
+  haptics.ts      — Vibration API wrapper (see Haptics)
+  motion.ts       — prefers-reduced-motion query + subscription (see Reduced Motion)
   layout.ts       — getLayout, cellPos, *PendingPos helpers
 docs/
   balance.md    — difficulty/spawn tuning rationale + per-board numbers (see Difficulty ramp)
@@ -305,10 +382,11 @@ scripts/
 | `GameScreen.tsx` | Computes `scale` via `useScale`, mounts `useInput`, renders header + combo strip (nuke/combo/spacer) + arena; applies shake class and announcement overlay |
 | `GameHeader.tsx` | Score / highScore display; title is clickable (navigates to menu via `onMenu` prop) |
 | `GameOverOverlay.tsx` | Overlay with Play Again + Main Menu |
-| `MenuScreen.tsx` | Title "UNTILED" + decorative mini-tile row + Play / Boards / How to Play / Settings buttons + best-score badge |
+| `MenuScreen.tsx` | Title "UNTILED" + decorative mini-tile row + Continue (when a run is resumable) / Play·New Game / Boards / How to Play / Stats / Settings buttons + best-score badge |
 | `BoardsScreen.tsx` | Board-size picker (7×7 / 9×9 / 11×11) with per-board best scores; selecting one sets `gridMode` and starts a game |
 | `HowToPlayScreen.tsx` | Rule cards (icon + text + mini `Tile` examples) covering push, annihilation, combos, nuke, clean sweep, bombs/stones, corners, game over |
-| `SettingsScreen.tsx` | Card-based: sound toggle switch, color palette, high score + reset. (Board size lives in the Boards screen; the Settings grid-size selector stays hidden) |
+| `SettingsScreen.tsx` | Card-based: sound / haptics / reduce-motion toggles, color palette, high score + reset. (Board size lives in the Boards screen; the Settings grid-size selector stays hidden. The haptics row hides itself where the browser has no Vibration API) |
+| `StatsScreen.tsx` | Per-board best scores + lifetime totals (see Lifetime Stats), with a reset that clears totals but keeps bests |
 
 ## Hooks
 - `useInput(triggerPush, fireNuke?)` — keyboard (ArrowKeys push, Space fires nuke) + touch (touchstart/touchend, 30px threshold)
@@ -323,7 +401,12 @@ scripts/
 ---
 
 ## Testing
-`src/game/gameLogic.test.ts` — pure logic tests (no React). `src/store/store.test.ts` —
+`src/game/gameLogic.test.ts` — pure logic tests (no React).
+`src/store/persistence.test.ts` — saved-run validation (every way a save can be
+malformed must be rejected, not loaded — a grid whose dimensions disagree with
+its mode is the crash the run guard exists to prevent) plus lifetime-stats
+round-tripping. Shims `localStorage`/`matchMedia` since the jest environment is
+node. `src/store/store.test.ts` —
 store-level tests that drive the real animation chains (shims `requestAnimationFrame`
 onto `setTimeout` and waits in real time; a few seconds per case), covering the run
 guard: switching boards or resetting mid-cascade must leave a consistent, playable

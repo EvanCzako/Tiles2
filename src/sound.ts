@@ -11,6 +11,12 @@ export function setSoundEnabled(on: boolean): void {
   enabled = on;
 }
 
+// Release the audio hardware while the tab is hidden. A suspended context is
+// resumed lazily by the next ac() call, so nothing else has to know about this.
+export function suspendAudio(): void {
+  if (ctx && ctx.state === 'running') void ctx.suspend().catch(() => {});
+}
+
 function ac(): AudioContext | null {
   if (!enabled || typeof window === 'undefined') return null;
   if (!ctx) {

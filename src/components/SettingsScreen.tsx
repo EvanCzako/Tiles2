@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
 import { PALETTE_IDS, PALETTE_LABELS, getTileColor } from '../game';
+import { hapticsSupported } from '../haptics';
 import type { Screen, GridMode } from '../types';
 
 // Only modes the GridMode type actually allows; the section hides itself
@@ -22,6 +23,10 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
     setColorPalette,
     soundOn,
     setSoundOn,
+    hapticsOn,
+    setHapticsOn,
+    reducedMotion,
+    setReducedMotion,
   } = useGameStore(
     useShallow((s) => ({
       gridMode: s.gridMode,
@@ -32,6 +37,10 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
       setColorPalette: s.setColorPalette,
       soundOn: s.soundOn,
       setSoundOn: s.setSoundOn,
+      hapticsOn: s.hapticsOn,
+      setHapticsOn: s.setHapticsOn,
+      reducedMotion: s.reducedMotion,
+      setReducedMotion: s.setReducedMotion,
     }))
   );
 
@@ -53,6 +62,42 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
               onClick={() => setSoundOn(!soundOn)}
               aria-pressed={soundOn}
               aria-label="Toggle sound"
+            >
+              <span className="toggle-knob" />
+            </button>
+          </div>
+
+          {/* Hidden where the browser has no Vibration API (notably iOS Safari)
+              rather than shown as a switch that silently does nothing. */}
+          {hapticsSupported() && (
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <p className="settings-label">Haptics</p>
+                <p className="settings-sublabel">Vibration on pushes &amp; matches</p>
+              </div>
+              <button
+                className={`toggle${hapticsOn ? ' toggle--on' : ''}`}
+                onClick={() => setHapticsOn(!hapticsOn)}
+                aria-pressed={hapticsOn}
+                aria-label="Toggle haptics"
+              >
+                <span className="toggle-knob" />
+              </button>
+            </div>
+          )}
+
+          <div className="settings-row">
+            <div className="settings-row-text">
+              <p className="settings-label">Reduce Motion</p>
+              <p className="settings-sublabel">
+                Turns off screen shake &amp; pulsing. Follows your system setting until changed here.
+              </p>
+            </div>
+            <button
+              className={`toggle${reducedMotion ? ' toggle--on' : ''}`}
+              onClick={() => setReducedMotion(!reducedMotion)}
+              aria-pressed={reducedMotion}
+              aria-label="Toggle reduced motion"
             >
               <span className="toggle-knob" />
             </button>

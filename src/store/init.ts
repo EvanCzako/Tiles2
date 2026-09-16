@@ -6,7 +6,15 @@ import {
   setDifficulty,
 } from '../game';
 import { getLayout } from '../layout';
-import { loadHighScore, loadColorPalette, loadSoundOn, loadGridMode } from './persistence';
+import {
+  loadHighScore,
+  loadColorPalette,
+  loadSoundOn,
+  loadGridMode,
+  loadHapticsOn,
+  loadReducedMotion,
+  loadStats,
+} from './persistence';
 
 // Every call starts a new run. Animation chains started under an older id are
 // inert from this point on (see the run guard in store/animations.ts).
@@ -52,5 +60,11 @@ export function initState(mode: GridMode = loadGridMode()): GameState {
     shake: null,
     announcement: null,
     soundOn: loadSoundOn(),
+    hapticsOn: loadHapticsOn(),
+    reducedMotion: loadReducedMotion(),
+    stats: loadStats(),
+    // Recomputed by the store after init (a fresh run supersedes any save); the
+    // menu reads it to decide whether to offer Continue.
+    hasSavedRun: false,
   };
 }

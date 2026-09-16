@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
 import Tile from './Tile';
 import type { Screen } from '../types';
@@ -9,8 +10,39 @@ interface MenuScreenProps {
 }
 
 export default function MenuScreen({ navigate }: MenuScreenProps) {
-  const highScore = useGameStore((s) => s.highScore);
-  const gridMode = useGameStore((s) => s.gridMode);
+  const { highScore, gridMode, hasSavedRun, turnCount, gameOver, resumeRun, reset } = useGameStore(
+    useShallow((s) => ({
+      highScore: s.highScore,
+      gridMode: s.gridMode,
+      hasSavedRun: s.hasSavedRun,
+      turnCount: s.turnCount,
+      gameOver: s.gameOver,
+      resumeRun: s.resumeRun,
+      reset: s.reset,
+    }))
+  );
+
+  // Two ways to have a run worth continuing: one still live in memory (the
+  // player tapped the title mid-game to look at Settings) or one persisted by
+  // an earlier session. The live one takes precedence — reloading it from
+  // storage would roll the player back to the last settled turn.
+  const liveRun = turnCount > 0 && !gameOver;
+  const canContinue = liveRun || hasSavedRun;
+
+  const onContinue = () => {
+    // resumeRun() leaves state untouched and returns false if the save turns out
+    // to be unreadable, which lands the player on the fresh board that is
+    // already loaded rather than stranding them on the menu.
+    if (!liveRun) resumeRun();
+    navigate('game');
+  };
+
+  // New Game must actually be new: reset() rebuilds the board *and* drops the
+  // persisted run, so Continue can't resurrect what the player just left.
+  const onPlay = () => {
+    reset();
+    navigate('game');
+  };
 
   return (
     <div className="menu-screen">
@@ -30,14 +62,25 @@ export default function MenuScreen({ navigate }: MenuScreenProps) {
         <p className="menu-subtitle">a tile annihilation game</p>
       </div>
       <div className="menu-buttons">
-        <button className="menu-btn menu-btn--primary" onClick={() => navigate('game')}>
-          Play
+        {canContinue && (
+          <button className="menu-btn menu-btn--primary" onClick={onContinue}>
+            Continue
+          </button>
+        )}
+        <button
+          className={`menu-btn ${canContinue ? 'menu-btn--secondary' : 'menu-btn--primary'}`}
+          onClick={onPlay}
+        >
+          {canContinue ? 'New Game' : 'Play'}
         </button>
         <button className="menu-btn menu-btn--secondary" onClick={() => navigate('boards')}>
           Boards
         </button>
         <button className="menu-btn menu-btn--secondary" onClick={() => navigate('howToPlay')}>
           How to Play
+        </button>
+        <button className="menu-btn menu-btn--secondary" onClick={() => navigate('stats')}>
+          Stats
         </button>
         <button className="menu-btn menu-btn--secondary" onClick={() => navigate('settings')}>
           Settings

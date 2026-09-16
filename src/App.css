@@ -1063,3 +1063,111 @@ body {
 .crash-box .menu-btn {
   width: 100%;
 }
+
+/* ── Reduced motion ───────────────────────────────────────────────────────────
+   Keyed off the root data attribute (set in App.tsx), not the media query, so
+   the Settings override works in both directions. Decorative motion only —
+   tile flight and collapse are how the board is read and are timed against the
+   cascade's setTimeout chain, so they are deliberately left alone. See
+   src/motion.ts for the rationale. */
+
+:root[data-reduced-motion='true'] .shake-small,
+:root[data-reduced-motion='true'] .shake-big {
+  animation: none;
+}
+
+/* The nuke meter's idle pulse is ambient motion with no information in it —
+   the armed state is already carried by the button's label and fill bar. */
+:root[data-reduced-motion='true'] .ability-btn--ready {
+  animation: none;
+}
+
+/* Score popups and the announcement still need to appear and then leave, so
+   they cross-fade in place instead of flying/scaling. */
+:root[data-reduced-motion='true'] .score-popup {
+  animation: reduced-fade 900ms ease-out forwards;
+}
+
+:root[data-reduced-motion='true'] .announcement {
+  animation: reduced-fade 1000ms ease-out forwards;
+}
+
+:root[data-reduced-motion='true'] .combo-strip-badge {
+  animation: none;
+}
+
+:root[data-reduced-motion='true'] .game-over-box {
+  animation: none;
+}
+
+:root[data-reduced-motion='true'] .game-over-newbest {
+  animation: none;
+}
+
+@keyframes reduced-fade {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── Stats screen ───────────────────────────────────────────────────────────── */
+
+.stats-best-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.stats-best {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+}
+
+.stats-best-mode {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.stats-best-score {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.stats-list {
+  margin-top: 10px;
+}
+
+.stats-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.stats-row:last-child {
+  border-bottom: none;
+}
+
+.stats-row-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.stats-row-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+}

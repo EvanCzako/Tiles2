@@ -15,7 +15,15 @@ import {
   NUKE_CHARGE_MAX,
   CLEAN_SWEEP_BONUS_PER_TILE,
 } from '../game';
-import { saveHighScore } from './persistence';
+import { saveHighScore, clearRun } from './persistence';
+import { recordRunEnd, bumpStats, raiseStat } from './stats';
+import {
+  hapticMatch,
+  hapticBoardWipe,
+  hapticNuke,
+  hapticCleanSweep,
+  hapticGameOver,
+} from '../haptics';
 import {
   playMatch,
   playBoardWipe,
@@ -89,6 +97,10 @@ function announce(text: string, get: ZustandGet, set: ZustandSet, color?: string
 
 let shakeSeq = 0;
 function triggerShake(tier: ShakeState['tier'], get: ZustandGet, set: ZustandSet): void {
+  // Screen shake is the one effect here that is a genuine vestibular trigger,
+  // so reduced motion drops it at the source rather than just muting the CSS —
+  // that also skips the state churn and the cleanup timer.
+  if (get().reducedMotion) return;
   const id = ++shakeSeq;
   set({ shake: { tier, id } });
   setTimeout(() => {
@@ -118,6 +130,8 @@ export function endTurn(
     const mult = Math.min(get().combo, MAX_COMBO);
     const bonus = CLEAN_SWEEP_BONUS_PER_TILE * get().turnClearedTiles * mult;
     playCleanSweep();
+    hapticCleanSweep();
+    bumpStats(get, set, { cleanSweeps: 1 });
     triggerShake('big', get, set);
     announce('CLEAN SWEEP!', get, set, '#ffcc00');
     spawnScorePopup([[curCfg.CENTER_ROW, curCfg.CENTER_COL]], `+${bonus}`, mult, get, set);
@@ -144,7 +158,17 @@ export function endTurn(
       saveHighScore(get().gridMode, newHighScore);
       commit({ gameOver: true, highScore: newHighScore });
       playGameOver();
+      hapticGameOver();
+      if (alive()) {
+        recordRunEnd(get, set);
+        clearRun();
+        commit({ hasSavedRun: false });
+      }
+      return;
     }
+    // End of turn is the one quiescent point in the cascade — nothing is
+    // animating and the grid is final — so it is where the run is snapshotted.
+    if (alive()) get().persistRun();
   };
 
   // Phase: all slides done — first commit the slide result (empty slots visible),
@@ -267,12 +291,17 @@ export function runCollapseLoop(
     });
 
     playMatch(mult);
+    hapticMatch(mult);
+    bumpStats(get, set, { tilesCleared: annihilatedCells.length - unlockedCells.length });
+    raiseStat(get, set, 'bestCombo', mult);
     if (bombBlastCells.length > 0) {
       playBomb();
       triggerShake('small', get, set);
     }
     if (boardWipeValues.length > 0) {
       playBoardWipe();
+      hapticBoardWipe();
+      bumpStats(get, set, { boardWipes: boardWipeValues.length });
       // "ALL 5s!" — tinted with the wiped value's tile color
       const label = boardWipeValues.map((v) => `${v}s`).join(' & ');
       announce(`ALL ${label}!`, get, set, getTileColor(boardWipeValues[0], get().colorPalette).bg);
@@ -388,6 +417,7 @@ export function nukeCenterAndSettle(
     requestAnimationFrame(() => {
       if (!alive()) return;
       playNuke();
+      hapticNuke();
       triggerShake('big', get, set);
       announce('NUKE!', get, set);
       commit({

@@ -136,10 +136,42 @@ export type Direction = 'left' | 'right' | 'up' | 'down';
 export type VerticalSide = 'top' | 'bottom';
 export type HorizontalSide = 'left' | 'right';
 export type GridMode = '7x7' | '9x9' | '11x11';
-export type Screen = 'menu' | 'game' | 'boards' | 'howToPlay' | 'settings';
+export type Screen = 'menu' | 'game' | 'boards' | 'howToPlay' | 'settings' | 'stats';
 export type PendingKey = 'leftPending' | 'rightPending' | 'topPending' | 'bottomPending';
 export type PendingSide = 'left' | 'right' | 'top' | 'bottom';
 export type FlyingSource = PendingSide | null;
+
+// The pure, resumable part of a run — everything needed to reconstruct a game
+// in progress. Animation sets, flying tiles and layout are transient and are
+// rebuilt on resume, so they are deliberately absent.
+export interface SavedRun {
+  gridMode: GridMode;
+  grid: Grid;
+  leftPending: number[];
+  rightPending: number[];
+  topPending: number[];
+  bottomPending: number[];
+  score: number;
+  turnCount: number;
+  nukeCharge: number;
+  nukeArmed: boolean;
+  lastVerticalSide: VerticalSide;
+  lastHorizontalSide: HorizontalSide;
+}
+
+// Cross-run totals, accumulated locally. Per-board bests stay in the high-score
+// map (see store/persistence.ts) — these are the lifetime aggregates.
+export interface LifetimeStats {
+  gamesPlayed: number;
+  totalScore: number;
+  totalTurns: number;
+  longestRun: number;   // most pushes survived in a single run
+  bestCombo: number;    // highest cascade multiplier ever reached
+  tilesCleared: number;
+  boardWipes: number;   // 3+ groups that swept a value board-wide
+  nukesFired: number;
+  cleanSweeps: number;
+}
 
 export interface GameState {
   // Identifies the current game run. Bumped by every initState() (reset / board
@@ -179,6 +211,14 @@ export interface GameState {
   shake: ShakeState | null;
   announcement: Announcement | null;
   soundOn: boolean;
+  hapticsOn: boolean;
+  // Suppresses decorative motion (shake, pulses, popup drift). See src/motion.ts
+  // for what is and isn't covered.
+  reducedMotion: boolean;
+  stats: LifetimeStats;
+  // A resumable run was found in storage at load time and has not been consumed
+  // or superseded yet — drives the menu's Continue button.
+  hasSavedRun: boolean;
 }
 
 export interface GameActions {
@@ -189,6 +229,15 @@ export interface GameActions {
   triggerPush: (direction: Direction) => void;
   fireNuke: () => void;
   setSoundOn: (on: boolean) => void;
+  setHapticsOn: (on: boolean) => void;
+  setReducedMotion: (on: boolean) => void;
+  // Restores the persisted run; returns false (leaving state untouched) when
+  // there is nothing valid to resume.
+  resumeRun: () => boolean;
+  // Writes the current run to storage. Called at end of turn and when the tab
+  // is hidden; a no-op once the run is over.
+  persistRun: () => void;
+  resetStats: () => void;
 }
 
 export type GameStore = GameState & GameActions;

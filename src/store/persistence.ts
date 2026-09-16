@@ -1,10 +1,15 @@
-import type { PaletteId, GridMode } from '../types';
+import type { PaletteId, GridMode, SavedRun, LifetimeStats } from '../types';
 import { PALETTE_IDS, GRID_CONFIGS } from '../game';
+import { systemPrefersReducedMotion } from '../motion';
 
 const SCORES_KEY = 'tilesHighScores';
 const PALETTE_KEY = 'tilesColorPalette';
 const SOUND_KEY = 'tilesSoundOn';
 const GRID_MODE_KEY = 'tilesGridMode';
+const HAPTICS_KEY = 'tilesHapticsOn';
+const REDUCED_MOTION_KEY = 'tilesReducedMotion';
+const RUN_KEY = 'tilesSavedRun';
+const STATS_KEY = 'tilesLifetimeStats';
 
 // localStorage is not always usable: Safari private browsing, "block all cookies",
 // embedded webviews and storage-quota exhaustion all make getItem/setItem *throw*
@@ -26,6 +31,15 @@ function writeItem(key: string, value: string): void {
     localStorage.setItem(key, value);
   } catch {
     /* storage unavailable or full — the session still plays, it just won't persist */
+  }
+}
+
+function removeItem(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* same degradation as writeItem */
   }
 }
 
@@ -75,4 +89,142 @@ export function loadSoundOn(): boolean {
 
 export function saveSoundOn(on: boolean): void {
   writeItem(SOUND_KEY, String(on));
+}
+
+export function loadHapticsOn(): boolean {
+  return readItem(HAPTICS_KEY) !== 'false';
+}
+
+export function saveHapticsOn(on: boolean): void {
+  writeItem(HAPTICS_KEY, String(on));
+}
+
+// Reduced motion: the OS preference is the default, and an explicit in-app
+// choice ('true'/'false') overrides it. Anything else (unset, corrupt) falls
+// back to the system query so the accessible default wins.
+export function loadReducedMotion(): boolean {
+  const saved = readItem(REDUCED_MOTION_KEY);
+  if (saved === 'true') return true;
+  if (saved === 'false') return false;
+  return systemPrefersReducedMotion();
+}
+
+export function saveReducedMotion(on: boolean): void {
+  writeItem(REDUCED_MOTION_KEY, String(on));
+}
+
+export function clearReducedMotionOverride(): void {
+  removeItem(REDUCED_MOTION_KEY);
+}
+
+export function hasReducedMotionOverride(): boolean {
+  const saved = readItem(REDUCED_MOTION_KEY);
+  return saved === 'true' || saved === 'false';
+}
+
+// ── In-progress run ──────────────────────────────────────────────────────────
+// A run is 100+ pushes long, so losing one to a reload, a backgrounded tab the
+// browser reclaimed, or a stray navigation is the difference between "I'll play
+// again" and "I'm done". Only the pure game state is stored: animation sets,
+// flying tiles and layout are all transient and are rebuilt on resume.
+
+const RUN_VERSION = 1;
+
+function isIntGrid(v: unknown, rows: number, cols: number): v is number[][] {
+  return (
+    Array.isArray(v) &&
+    v.length === rows &&
+    v.every((row) => Array.isArray(row) && row.length === cols && row.every((n) => typeof n === 'number' && Number.isFinite(n)))
+  );
+}
+
+function isNumberArray(v: unknown, len: number): v is number[] {
+  return Array.isArray(v) && v.length === len && v.every((n) => typeof n === 'number' && Number.isFinite(n));
+}
+
+export function saveRun(run: SavedRun): void {
+  writeItem(RUN_KEY, JSON.stringify({ ...run, version: RUN_VERSION }));
+}
+
+export function clearRun(): void {
+  removeItem(RUN_KEY);
+}
+
+/**
+ * Returns the saved run only if it is fully consistent with the board config it
+ * claims — a grid whose dimensions disagree with its mode is exactly the state
+ * that used to throw on the next push (see the run guard in store/animations.ts),
+ * so a mismatched or truncated save is discarded rather than loaded.
+ */
+export function loadRun(): SavedRun | null {
+  const raw = readItem(RUN_KEY);
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(raw) as Record<string, unknown>;
+    if (p.version !== RUN_VERSION) return null;
+    const mode = p.gridMode;
+    if (typeof mode !== 'string' || !(mode in GRID_CONFIGS)) return null;
+    const cfg = GRID_CONFIGS[mode as GridMode];
+    if (!isIntGrid(p.grid, cfg.ROWS, cfg.COLS)) return null;
+    const pend = (k: string) => (isNumberArray(p[k], cfg.PENDING_SIZE) ? (p[k] as number[]) : null);
+    const left = pend('leftPending'), right = pend('rightPending');
+    const top = pend('topPending'), bottom = pend('bottomPending');
+    if (!left || !right || !top || !bottom) return null;
+    const num = (v: unknown, fallback: number) =>
+      typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+    return {
+      gridMode: mode as GridMode,
+      grid: p.grid,
+      leftPending: left,
+      rightPending: right,
+      topPending: top,
+      bottomPending: bottom,
+      score: Math.max(0, num(p.score, 0)),
+      turnCount: Math.max(0, num(p.turnCount, 0)),
+      nukeCharge: Math.max(0, num(p.nukeCharge, 0)),
+      nukeArmed: p.nukeArmed === true,
+      lastVerticalSide: p.lastVerticalSide === 'bottom' ? 'bottom' : 'top',
+      lastHorizontalSide: p.lastHorizontalSide === 'right' ? 'right' : 'left',
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Lifetime stats ───────────────────────────────────────────────────────────
+
+export const EMPTY_STATS: LifetimeStats = {
+  gamesPlayed: 0,
+  totalScore: 0,
+  totalTurns: 0,
+  longestRun: 0,
+  bestCombo: 0,
+  tilesCleared: 0,
+  boardWipes: 0,
+  nukesFired: 0,
+  cleanSweeps: 0,
+};
+
+export function loadStats(): LifetimeStats {
+  const raw = readItem(STATS_KEY);
+  if (!raw) return { ...EMPTY_STATS };
+  try {
+    const p = JSON.parse(raw) as Record<string, unknown>;
+    const out = { ...EMPTY_STATS };
+    for (const k of Object.keys(EMPTY_STATS) as (keyof LifetimeStats)[]) {
+      const v = p[k];
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) out[k] = v;
+    }
+    return out;
+  } catch {
+    return { ...EMPTY_STATS };
+  }
+}
+
+export function saveStats(stats: LifetimeStats): void {
+  writeItem(STATS_KEY, JSON.stringify(stats));
+}
+
+export function resetStats(): void {
+  removeItem(STATS_KEY);
 }
