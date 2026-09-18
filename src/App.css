@@ -804,38 +804,6 @@ body {
   margin: 0;
 }
 
-.settings-mode-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.mode-btn {
-  background: var(--card);
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.mode-btn:hover {
-  background: var(--card-hover);
-  color: var(--text-strong);
-}
-
-.mode-btn.active {
-  background: var(--accent-deep);
-  color: var(--text-bright);
-  border-color: var(--accent-deep);
-}
-
 /* ── Toggle switch ───────────────────────────────────────────────────────── */
 
 .toggle {

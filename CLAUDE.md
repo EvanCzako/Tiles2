@@ -417,7 +417,7 @@ scripts/
 | `MenuScreen.tsx` | Title "UNTILED" + decorative mini-tile row + Continue (when a run is resumable) / Play·New Game / Boards / How to Play / Stats / Settings buttons + best-score badge |
 | `BoardsScreen.tsx` | Board-size picker (7×7 / 9×9 / 11×11) with per-board best scores; selecting one sets `gridMode` and starts a game |
 | `HowToPlayScreen.tsx` | Rule cards (icon + text + mini `Tile` examples) covering push, annihilation, combos, nuke, clean sweep, bombs/stones, corners, game over (copy is author-written — edit the `sections` array at the top of the file) |
-| `SettingsScreen.tsx` | Card-based: sound / haptics / reduce-motion toggles, tile palette, high score + reset, About (privacy policy + support links, kept in step with mobile where they are an App Review requirement). (Board size lives in the Boards screen; the Settings grid-size selector stays hidden. The haptics row hides itself where the browser has no Vibration API) |
+| `SettingsScreen.tsx` | Card-based: sound / haptics / reduce-motion toggles, Tile Colors palette, high score + reset, and About (privacy policy + support links — kept in step with mobile, where they are an App Review requirement). Board size lives in the Boards screen; a dead grid-size selector that could never render was removed Sept 2026. The haptics row hides itself where the browser has no Vibration API |
 | `StatsScreen.tsx` | Per-board best scores + lifetime totals (see Lifetime Stats), with a reset that clears totals but keeps bests |
 
 ## Hooks

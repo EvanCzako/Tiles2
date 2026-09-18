@@ -2,11 +2,8 @@ import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store';
 import { PALETTE_IDS, PALETTE_LABELS, getTileColor } from '../game';
 import { hapticsSupported } from '../haptics';
-import type { Screen, GridMode } from '../types';
+import type { Screen } from '../types';
 
-// Only modes the GridMode type actually allows; the section hides itself
-// when there is nothing to choose between.
-const GRID_MODES: GridMode[] = ['9x9'];
 const SWATCH_VALUES = [1, 2, 3, 4, 5, 6, 7];
 
 // Kept in step with the mobile app's Settings → About, which needs these for
@@ -21,7 +18,6 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ navigate }: SettingsScreenProps) {
   const {
     gridMode,
-    setGridMode,
     highScore,
     resetHighScore,
     colorPalette,
@@ -35,7 +31,6 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
   } = useGameStore(
     useShallow((s) => ({
       gridMode: s.gridMode,
-      setGridMode: s.setGridMode,
       highScore: s.highScore,
       resetHighScore: s.resetHighScore,
       colorPalette: s.colorPalette,
@@ -134,22 +129,6 @@ export default function SettingsScreen({ navigate }: SettingsScreenProps) {
           </div>
         </div>
 
-        {GRID_MODES.length > 1 && (
-          <div className="settings-card">
-            <p className="settings-label">Grid Size</p>
-            <div className="settings-mode-row">
-              {GRID_MODES.map((mode) => (
-                <button
-                  key={mode}
-                  className={`mode-btn${gridMode === mode ? ' active' : ''}`}
-                  onClick={() => setGridMode(mode)}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="settings-card">
           <div className="settings-row">
